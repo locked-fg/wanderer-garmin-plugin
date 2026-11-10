@@ -6,17 +6,9 @@ Dieses Plugin verbindet [Wanderer](https://wanderer.to) mit der [Garmin Personal
 
 ---
 
-## 💡 Wichtig: Docker-Build mit TinyGo
+## 💡 Fertiges Plugin-Paket: Kein TinyGo nötig!
 
-**TinyGo ist NICHT im Standard-Wanderer-Container enthalten!**
-
-Da du Wanderer im Docker betreibst und **Nichts auf deinem Host installieren** möchtest, musst du **TinyGo einmalig im Container installieren**:
-
-```bash
-docker exec -it wanderer-db apt-get update && apt-get install -y tinygo make
-```
-
-Danach kannst du das Plugin im Container bauen – **ohne etwas auf deinem Host zu installieren!**
+Das Plugin ist bereits gebaut (`dist/garmin/` in diesem Repository: `plugin.json`, `plugin.wasm`, `icon.svg` – gebaut mit TinyGo 0.41.1, derselben Version wie der Wanderer-CI-Build). Für die Installation musst du **nur die 3 Dateien in das Plugin-Verzeichnis von Wanderer kopieren** – ganz ohne Build im Container. Details siehe [Installation](#-installation).
 
 ---
 
@@ -74,51 +66,39 @@ Bevor du das Plugin installierst, stelle sicher, dass du folgende Dinge hast:
 
 ## 🔧 Installation
 
-### 0️⃣ TinyGo im Container installieren (einmalig!)
+### 🐳 Fertiges Plugin installieren (empfohlen – kein Build nötig!)
 
-**TinyGo ist NICHT standardmäßig im Wanderer-Container enthalten.**
-
-Führe diesen Befehl **einmalig** aus, um TinyGo und Make im Container zu installieren:
+Kopiere die 3 Dateien aus `dist/garmin/` in das Plugin-Verzeichnis von Wanderer (`data/plugins/garmin/`, im Container `/data/plugins/garmin/`):
 
 ```bash
-docker exec -it wanderer-db apt-get update && apt-get install -y tinygo make
-```
+# Variante A: direkt auf dem Host (data/ als Bind-Mount)
+mkdir -p /pfad/zu/deinem/wanderer/data/plugins/garmin
+cp dist/garmin/plugin.json dist/garmin/plugin.wasm dist/garmin/icon.svg /pfad/zu/deinem/wanderer/data/plugins/garmin/
+docker compose restart wanderer-db
 
-✅ **Fertig!** TinyGo und Make sind jetzt im Container verfügbar.
-
----
-
-### 🐳 Im Docker Container bauen
-
-Da Wanderer im Docker läuft, ist dies die **einzige benötigte Methode** – du brauchst **nichts auf deinem Host** zu installieren!
-
-#### Einzeiliger Befehl (kopieren & ausführen):
-```bash
-docker exec -it wanderer-db bash -c "cd /app/plugins/garmin && make build && make install-local && echo '✅ Plugin installiert!'" && docker compose restart wanderer-db
-```
-
-#### Schritt-für-Schritt:
-```bash
-# 1. In den laufenden Container einsteigen
-docker exec -it wanderer-db /bin/bash
-
-# 2. In das Plugin-Verzeichnis wechseln
-cd /app/plugins/garmin
-
-# 3. Plugin bauen (TinyGo ist jetzt installiert!)
-make build
-
-# 4. Plugin installieren
-make install-local
-
-# 5. Container verlassen
-exit
-
-# 6. Wanderer neustarten
+# Variante B: in den laufenden Container kopieren
+docker exec wanderer-db mkdir -p /data/plugins/garmin
+docker cp dist/garmin/plugin.json wanderer-db:/data/plugins/garmin/plugin.json
+docker cp dist/garmin/plugin.wasm wanderer-db:/data/plugins/garmin/plugin.wasm
+docker cp dist/garmin/icon.svg  wanderer-db:/data/plugins/garmin/icon.svg
 docker compose restart wanderer-db
 ```
 
-✅ **Fertig!** Das Plugin ist jetzt installiert.
+✅ **Fertig!** Das Plugin ist jetzt installiert und erscheint nach dem Neustart unter **Einstellungen → Plugins**.
+
+---
+
+### 🔨 Aus dem Quellcode bauen (optional)
+
+Nur nötig, um das Plugin selbst zu kompilieren. Dafür brauchst du **Go 1.25** und **TinyGo 0.41.1** auf dem Build-Host, und das Plugin muss im Wanderer-Repository unter `plugins/garmin` liegen (wegen `replace ../sdk` in `go.mod`):
+
+```bash
+git clone https://github.com/open-wanderer/wanderer.git
+cp -r wanderer-garmin-plugin wanderer/plugins/garmin
+cd wanderer/plugins/garmin
+make build           # -> dist/garmin/{plugin.json,plugin.wasm,icon.svg}
+make install-local   # -> ../../data/plugins/garmin/
+```
 
 ---
 
@@ -134,9 +114,10 @@ docker compose restart wanderer-db
 ### Schritt 2: API Key einrichten
 
 1. Klicke auf das **⚙️ Symbol** neben dem Garmin Plugin
-2. Gib deinen **Garmin Personal API Token** ein:
-   - Den Token hast du zuvor unter [https://connect.garmin.com/app/settings/personalApiToken](https://connect.garmin.com/app/settings/personalApiToken) erstellt
-   - Der Token sieht so aus: `abc123def456...`
+2. Gib deinen **Garmin Personal API Key** ein (Feld `apiKey`):
+   - Den Key hast du zuvor unter [https://connect.garmin.com/app/settings/personalApiToken](https://connect.garmin.com/app/settings/personalApiToken) erstellt
+   - Der Key sieht so aus: `GCDC_...`
+   - **Hinweis:** Das Plugin tauscht den Key automatisch gegen ein 24h gültiges Access Token (`POST /personalapitoken-service/...` mit `Authorization: ApiKey <key>`) und verwendet dieses als Bearer-Token. Du musst nichts weiter tun.
 3. (Optional) Setze ein **Startdatum**:
    - Nur Aktivitäten ab diesem Datum werden importiert
    - Nützlich, um alte Aktivitäten schrittweise zu synchronisieren
@@ -317,20 +298,17 @@ Das Plugin mappt Garmin-Aktivitätstypen automatisch zu Wanderer-Kategorien:
 
 ---
 
-### 🔴 **"make: command not found" oder "tinygo: command not found"**
+### 🔴 **Build-Fehler beim Selbstkompilieren ("tinygo: command not found" / "../sdk" nicht gefunden)**
 
 **Ursache:**
-- TinyGo oder Make sind nicht im Container installiert
+- TinyGo 0.41.1 ist nicht auf dem Build-Host installiert, oder das Plugin liegt nicht innerhalb des wanderer-Repos
 
 **Lösung:**
-**Installiere TinyGo und Make im Container:**
+- Nutze das fertige Paket aus `dist/garmin/` (kein Build nötig), oder baue auf einem Host mit Go 1.25 + TinyGo 0.41.1, wobei das Plugin unter `plugins/garmin` im wanderer-Repository liegen muss:
 ```bash
-docker exec -it wanderer-db apt-get update && apt-get install -y tinygo make
-```
-
-Dann versuche den Build erneut:
-```bash
-docker exec -it wanderer-db bash -c "cd /app/plugins/garmin && make build && make install-local"
+git clone https://github.com/open-wanderer/wanderer.git
+cp -r wanderer-garmin-plugin wanderer/plugins/garmin
+cd wanderer/plugins/garmin && make build && make install-local
 ```
 
 ---
@@ -339,14 +317,14 @@ docker exec -it wanderer-db bash -c "cd /app/plugins/garmin && make build && mak
 
 ### API Endpunkte
 
-Das Plugin nutzt folgende Garmin Personal API Endpunkte:
+Das Plugin nutzt folgende Garmin Personal API Endpunkte (verifiziert gegen die Live-API):
 
 | Endpunkt | Zweck |
 |----------|-------|
-| `/activitylist-service/activities/search/activities` | Aktivitäten suchen und auflisten |
-| `/activity-service/activity/{id}` | Aktivitätsdetails abrufen |
-| `/activity-service/activity/{id}/workouts` | Workouts einer Aktivität |
-| `/download-service/files/activity/{id}` | Aktivitätsdatei (ZIP mit GPX) herunterladen |
+| `POST /personalapitoken-service/personal-api/personal-api-key/token` | API Key gegen 24h-JWT tauschen (`Authorization: ApiKey <key>`) |
+| `/activitylist-service/activities/search/activities` | Aktivitäten suchen/auflisten (`start`, `limit`, `startDate`) |
+| `/activity-service/activity/{id}` | Aktivitätsdetails (summaryDTO, activityTypeDTO, accessControlRuleDTO) |
+| `/activity-service/activity/{id}/details` | Track als `geoPolylineDTO.polyline` (wird zu GPX gebaut) |
 
 ### Base URL
 
@@ -354,13 +332,11 @@ Das Plugin nutzt folgende Garmin Personal API Endpunkte:
 https://personal.connectapi.garmin.com
 ```
 
-> ⚠️ **Wichtig:** Nicht `api.garmin.com` – das ist die alte API!
-
 ### Authentifizierung
 
-- **Methode:** Bearer Token (Personal API Key)
-- **Header:** `Authorization: Bearer <API_KEY>`
-- **Kein OAuth** nötig – einfacher API Key
+- Der Personal API Key (`GCDC_...`) aus den Garmin-Einstellungen ist **kein** Bearer-Token
+- Das Plugin tauscht ihn per Token-Endpunkt gegen ein **24h gültiges JWT** und nutzt danach `Authorization: Bearer <jwt>`
+- Der GPX-Download (`/download-service/...`) liefert nur ein ZIP mit **FIT**-Datei – deshalb wird der Track aus `geoPolylineDTO` als GPX rekonstruiert
 
 ### Datenformat
 

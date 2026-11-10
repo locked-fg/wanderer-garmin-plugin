@@ -36,7 +36,6 @@
     "contexts": {
       "api_key": {
         "type": "api_key",
-        "placement": "header",
         "name": "x-api-key",
         "secretField": "apiKey"
       },
@@ -54,10 +53,9 @@
           "type": "public_api",
           "fixedBaseURL": "https://personal.connectapi.garmin.com",
           "allowedPathPrefixes": [
+            "/personalapitoken-service",
             "/activitylist-service",
-            "/activity-service",
-            "/download-service",
-            "/userprofile-service"
+            "/activity-service"
           ],
           "auth": [
             "bearer_token"
