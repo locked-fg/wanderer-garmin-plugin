@@ -153,7 +153,13 @@ Alle Angaben wurden mit einem echten Personal API Token gegen die Live-API getes
 
 **Gotchas:** `activityType`/`privacy` sind Objekte `{typeId, typeKey}`, keine Strings; Zeitstempel kommen in zwei Formaten (`"2006-01-02 15:04:05"` in der Liste, `"2026-10-12T16:09:45.0"` in `summaryDTO`) und werden nach RFC3339 UTC normalisiert; `startDate` filtert tagesgenau, zusätzlich clientseitig über `beginTimestamp`.
 
-**Build-Artefakt:** `dist/garmin/plugin.wasm` (~294 KB) mit den Exports `list_routes_v1`, `list_activities_v1`, `get_route_detail_v1`, `get_activity_detail_v1`; `plugin.json` valide gegen `plugins/schema/plugin.schema.json` und via `manifestcheck` geprüft.
+**Live gegen Docker-Wanderer verifiziert (Plugin-Load + Sync + Fehlerpfad):**
+
+- Das Token-Endpunkt antwortet mit `Content-Type: text/plain` (der JWT steht nackt im Body) – `text/plain` muss deshalb in `permissions.downloads.contentTypes` des Manifests erlaubt sein, sonst blockt die Host-Policy den Request (`content type "text/plain" is not allowed by manifest permissions`).
+- Fehler müssen über den **Extism-Fehlerkanal** gemeldet werden (`pdk.SetErrorString` mit JSON `{code, message}` bei Rückgabewert ≠ 0), nicht über `pdk.OutputJSON` – sonst sieht der Host nur den generischen `plugin_error: call <export> failed with code 1`.
+- `sdk.HostRequest` liefert **jeden** HTTP-Status als normalen Rückgabewert; der Plugin-Code muss `resp.Status` selbst prüfen (revoked/deleted Key → `404 {"error":"NotFoundException","message":"Personal API Key with ID … does not exist."}` am Token-Endpunkt, als `auth_failed` im Instanz-`last_error` sichtbar).
+
+**Build-Artefakt:** `dist/garmin/plugin.wasm` (~295 KB) mit den Exports `list_routes_v1`, `list_activities_v1`, `get_route_detail_v1`, `get_activity_detail_v1`; `plugin.json` valide gegen `plugins/schema/plugin.schema.json` und via `manifestcheck` geprüft.
 
 **Bekannte Einschränkungen:** Fotos und Routen werden nicht importiert (kein Endpunkt in der Personal API verifiziert); der API Key wird pro Sync gegen ein neues 24h-JWT getauscht.
 

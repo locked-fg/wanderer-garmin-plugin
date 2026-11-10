@@ -3,6 +3,8 @@
 package main
 
 import (
+	"encoding/json"
+
 	"github.com/extism/go-pdk"
 )
 
@@ -106,22 +108,15 @@ func getTrailDetail(kind string) int32 {
 	return 0
 }
 
-// Helper function to fail with an error
+// Helper function to fail with an error. The host reads the structured error
+// from the extism error channel (pdk.SetErrorString), not from the output, so
+// the JSON-encoded pluginError must go there.
 func fail(code, message string) int32 {
-	output := struct {
-		Error *pluginError `json:"error,omitempty"`
-	}{
-		Error: &pluginError{
-			Code:    code,
-			Message: message,
-		},
-	}
-
-	// Try to output the error
-	if err := pdk.OutputJSON(output); err != nil {
-		// If we can't output JSON, just return error code
+	data, err := json.Marshal(pluginError{Code: code, Message: message})
+	if err != nil {
+		pdk.SetErrorString(message)
 		return 1
 	}
-
+	pdk.SetErrorString(string(data))
 	return 1
 }

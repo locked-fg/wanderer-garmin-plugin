@@ -74,6 +74,7 @@
         "application/gpx+xml",
         "application/xml",
         "text/xml",
+        "text/plain",
         "application/octet-stream",
         "application/zip"
       ]

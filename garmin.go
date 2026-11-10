@@ -136,12 +136,12 @@ func request(method, path string, query []sdk.QueryParam, extraHeaders map[strin
 		headers[k] = v
 	}
 
-	var body *sdk.HostRequestBody
+	var reqBody *sdk.HostRequestBody
 	if method != "GET" && method != "HEAD" {
-		body = &sdk.HostRequestBody{Type: sdk.HostRequestBodyTypeJSON, JSON: map[string]any{}}
+		reqBody = &sdk.HostRequestBody{Type: sdk.HostRequestBodyTypeJSON, JSON: map[string]any{}}
 	}
 
-	return sdk.HostRequest(sdk.HostRequestSpec{
+	resp, body, err := sdk.HostRequest(sdk.HostRequestSpec{
 		Method: method,
 		Target: sdk.RequestTarget{
 			Type:      "connector",
@@ -150,12 +150,23 @@ func request(method, path string, query []sdk.QueryParam, extraHeaders map[strin
 			Query:     query,
 		},
 		Headers: headers,
-		Body:    body,
+		Body:    reqBody,
 		Expect: sdk.ResponseExpect{
 			ContentTypes: contentTypes,
 			MaxBytes:     garminDownloadMaxBytes,
 		},
 	})
+	if err != nil {
+		return resp, body, err
+	}
+	if resp.Status < 200 || resp.Status >= 300 {
+		snippet := strings.TrimSpace(string(body))
+		if len(snippet) > 200 {
+			snippet = snippet[:200]
+		}
+		return resp, body, fmt.Errorf("garmin %s %s failed (%d): %s", method, path, resp.Status, snippet)
+	}
+	return resp, body, nil
 }
 
 // syncActivities lists activities page by page.
