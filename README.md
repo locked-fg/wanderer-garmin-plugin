@@ -2,7 +2,7 @@
 
 **Importiere deine Garmin-Aktivitäten und -Routen in Wanderer!**
 
-Dieses Plugin verbindet [Wanderer](https://wanderer.to) mit der [Garmin Personal API](https://developer.garmin.com/gc-developer-program/personal/personal-api/), um deine Aktivitäten, Routen und zugehörige Daten (GPX-Tracks, Fotos, Metadaten) automatisch zu synchronisieren.
+Dieses Plugin verbindet [Wanderer](https://wanderer.to) mit der [Garmin Personal API](https://developer.garmin.com/gc-developer-program/personal/personal-api/), um deine Aktivitäten und zugehörige Daten (GPX-Tracks, Metadaten) automatisch zu synchronisieren. Fotos und geplante Routen werden derzeit nicht importiert.
 
 ---
 
@@ -30,14 +30,15 @@ Das Plugin ist bereits gebaut (`dist/garmin/` in diesem Repository: `plugin.json
 
 ## 🎯 Funktionen
 
-✅ **Aktivitäten importieren** – Alle deine Garmin-Aktivitäten werden als Wanderer-Trails importiert  
-✅ **GPX-Tracks** – Vollständige Track-Daten mit Elevation, Zeitstempeln und Koordinaten  
-✅ **Fotos** – Aktivitätsfotos werden mit Geotags importiert  
+✅ **Aktivitäten importieren** – Alle deine Garmin-Aktivitäten werden als Wanderer-Trails importiert (end-to-end im Docker-Wanderer verifiziert)  
+✅ **GPX-Tracks** – Vollständige Track-Daten mit Elevation, Zeitstempeln und Koordinaten (aus `geoPolylineDTO.polyline` rekonstruiert)  
+❌ **Fotos** – werden derzeit nicht importiert (kein Endpunkt in der Personal API verifiziert)  
 ✅ **Metadaten** – Distanz, Dauer, Höhenmeter, Kalorien, Durchschnitts- und Maximalgeschwindigkeit  
 ✅ **Kategorien** – Automatische Zuordnung zu Wanderer-Kategorien (Laufen, Radfahren, Wandern, etc.)  
 ✅ **Privatsphäre** – Behält deine Garmin-Privatsphäre-Einstellungen bei  
 ✅ **Schwierigkeitsgrade** – easy, moderate, difficult  
 ✅ **Startdatum-Filter** – Importiere nur Aktivitäten ab einem bestimmten Datum  
+✅ **Inkrementell** – Bereits importierte Aktivitäten werden bei Folge-Syncs übersprungen (Dedup über `trail_external_reference`)  
 
 ---
 
@@ -145,9 +146,9 @@ Nach der Konfiguration:
 
 ### Automatische Synchronisation
 
-Das Plugin synchronisiert automatisch in regelmäßigen Abständen (standardmäßig alle paar Stunden).
+Der Sync läuft als Cron im `wanderer-db`-Container – standardmäßig **nächtlich (`0 2 * * *`)**, änderbar über `POCKETBASE_CRON_SYNC_SCHEDULE` in der `.env` der Wanderer-Installation.
 
-Du kannst die Synchronisationshäufigkeit in den **Plugin-Einstellungen** anpassen.
+⚠️ **Nicht überlappen lassen:** Syncs werden nicht serialisiert; ein Cron-Intervall, das kürzer ist als eine Sync dauert, führt zu doppelten Importversuchen (`external_id … Value must be unique`). Das Standardintervall ist sicher.
 
 ### Manuelle Synchronisation
 
@@ -165,7 +166,7 @@ Um manuell zu synchronisieren:
 |--------|-------------|-----------|
 | **Startdatum** | Importiere nur Aktivitäten ab diesem Datum | ✅ Ja |
 | **Aktivitäten** | Synchronisiere completed Aktivitäten | ✅ Ja |
-| **Routen** | Synchronisiere geplante Routen | ⚠️ Nein (noch experimentell) |
+| **Routen** | Geplante Routen – von der Personal API **nicht unterstützt** (das Plugin meldet `not_supported`) | ❌ Nein |
 | **Privatsphäre** | Behalte Garmin-Privatsphäre-Einstellungen bei | ✅ Ja |
 
 ### Tipps für große Aktivitätsmengen
@@ -220,7 +221,7 @@ Das Plugin mappt Garmin-Aktivitätstypen automatisch zu Wanderer-Kategorien:
 ### 🔴 **"Authentication Failed" / "Authentifizierung fehlgeschlagen"**
 
 **Ursache:**
-- Ungültiger oder abgelaufener API Key
+- Ungültiger, abgelaufener oder bei Garmin **gelöschter** API Key (Token-Endpunkt antwortet dann mit `404 NotFoundException` statt `401`)
 - API Key wurde nicht korrekt kopiert
 
 **Lösung:**
@@ -242,11 +243,18 @@ Das Plugin mappt Garmin-Aktivitätstypen automatisch zu Wanderer-Kategorien:
 1. Überprüfe dein **Startdatum** – es sollte in der Vergangenheit liegen
 2. Prüfe, ob du Aktivitäten in deinem [Garmin Connect](https://connect.garmin.com) hast
 3. Erstelle eine Test-Aktivität und versuche erneut zu synchronisieren
-4. Teste deinen API Key mit einem Tool wie [Postman](https://www.postman.com/) oder [curl](https://curl.se/):
+4. Teste deinen API Key mit [curl](https://curl.se/) – **zweistufig**, der `GCDC_...`-Key ist kein Bearer-Token:
    ```bash
-   curl -H "Authorization: Bearer DEIN_API_KEY" \
+   # 1) Key gegen 24h-JWT tauschen
+   JWT=$(curl -s -X POST \
+     -H "Authorization: ApiKey DEIN_GCDC_KEY" \
+     -H "Content-Type: application/json" -d '{}' \
+     "https://personal.connectapi.garmin.com/personalapitoken-service/personal-api/personal-api-key/token")
+   # 2) JWT als Bearer verwenden
+   curl -H "Authorization: Bearer $JWT" \
      "https://personal.connectapi.garmin.com/activitylist-service/activities/search/activities?start=0&limit=10"
    ```
+   Antwortet Schritt 1 mit `404 NotFoundException` ("Personal API Key with ID … does not exist"), wurde der Key bei Garmin gelöscht – neuen erstellen.
 
 ---
 
@@ -337,6 +345,14 @@ https://personal.connectapi.garmin.com
 - Der Personal API Key (`GCDC_...`) aus den Garmin-Einstellungen ist **kein** Bearer-Token
 - Das Plugin tauscht ihn per Token-Endpunkt gegen ein **24h gültiges JWT** und nutzt danach `Authorization: Bearer <jwt>`
 - Der GPX-Download (`/download-service/...`) liefert nur ein ZIP mit **FIT**-Datei – deshalb wird der Track aus `geoPolylineDTO` als GPX rekonstruiert
+- Gelöschter Key: Token-Endpunkt antwortet `404 NotFoundException` (nicht 401)
+
+### Host-Vertrag (Wanderer-Plugin-System, live im Docker getestet)
+
+- **Fehler** müssen über den Extism-Fehlerkanal gemeldet werden: `pdk.SetErrorString` mit JSON `{"code": ..., "message": ...}` bei Rückgabewert ≠ 0 – nicht über `pdk.OutputJSON`, sonst sieht der Host nur `plugin_error: call <export> failed with code 1`
+- **HTTP-Status selbst prüfen:** `sdk.HostRequest` liefert jeden Status als normalen Rückgabewert; das Plugin prüft `resp.Status` und meldet `auth_failed`/`provider_unavailable` mit Status + Body-Ausschnitt
+- **Content-Types:** Das Token-Endpunkt antwortet `text/plain` (JWT nackt im Body) – `text/plain` muss in `permissions.downloads.contentTypes` des Manifests erlaubt sein, sonst blockt die Host-Policy den Request
+- **Verifiziert end-to-end:** Plugin-Discovery (`GET /plugins` → `garmin`, `available`), Instanz-Anlage per PocketBase-API, Cron-Sync (`POCKETBASE_CRON_SYNC_SCHEDULE`, Standard nächtlich) mit Import echter Aktivitäten als Trails inkl. GPX, Dedup bei Folge-Syncs
 
 ### Datenformat
 

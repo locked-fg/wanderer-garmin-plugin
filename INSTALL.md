@@ -70,8 +70,10 @@ docker compose restart wanderer-db
 ## 4️⃣ Erste Synchronisation starten
 
 1. Klicke auf **„Jetzt synchronisieren"** (oder warte auf die automatische Sync)
-2. Warte 1–5 Minuten (je nach Anzahl der Aktivitäten)
+2. Warte 1–5 Minuten (je nach Anzahl der Aktivitäten; pro Aktivität ca. 3 s für Details + Track)
 3. Gehe zu **„Trails"** – deine Garmin-Aktivitäten sollten jetzt angezeigt werden
+
+> **Verifiziert im Docker-Kompletttest:** Mit einem echten (nicht revoked) Key importiert der Cron-Sync die Aktivitäten vollständig als Trails inkl. GPX-Track; jeder Import legt einen Eintrag in `trail_external_reference` (`user` + `provider` + `external_id` eindeutig) an. Erneute Syncs erkennen daran bereits importierte Aktivitäten und überspringen sie (Status der Instanz: `configured`, `last_sync_at` gesetzt, `last_error` leer).
 
 ---
 
@@ -113,9 +115,39 @@ Danach wie in Schritt 2 beschrieben installieren und Wanderer neu starten.
 - Bei 1000+ Aktivitäten: Startdatum setzen (z.B. `2024-01-01`) und schrittweise importieren (erst 2024, dann 2023, …)
 
 ### 🔄 Automatische Synchronisation
-- Das Plugin synchronisiert automatisch in regelmäßigen Abständen
-- Häufigkeit in den Plugin-Einstellungen anpassbar
-- Hinweis: Pro Sync wird der API Key gegen ein neues 24h-JWT getauscht
+- Der Sync läuft als Cron im `wanderer-db`-Container: Standard **nächtlich `0 2 * * *`**, änderbar über `POCKETBASE_CRON_SYNC_SCHEDULE` in der `.env`
+- Pro Sync wird der API Key gegen ein neues 24h-JWT getauscht
+- ⚠️ **Nicht überlappen lassen:** Syncs werden nicht serialisiert. Ein zu kurzes Cron-Intervall (kürzer als eine Sync dauert) führt zu doppelten Importversuchen und `external_id … Value must be unique`-Fehlern im Instanz-`last_error`. Das Standardintervall (nächtlich) ist sicher.
+
+### 🐳 Per API testen (ohne UI)
+
+Im Docker-Stack: Web `:3000`, PocketBase (db) `127.0.0.1:8090` (Dashboard `http://localhost:8090/_/`), Suche `:7700`.
+
+```bash
+# Superuser anlegen (einmalig)
+docker exec wanderer-db /pocketbase superuser upsert admin@example.com 'Passwort123!'
+
+# User anlegen + Token holen
+curl -X POST http://localhost:8090/api/collections/users/records \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"test@example.com","password":"Test1234!Pass","passwordConfirm":"Test1234!Pass"}'
+TOKEN=$(curl -s -X POST http://localhost:8090/api/collections/users/auth-with-password \
+  -H 'Content-Type: application/json' \
+  -d '{"identity":"test@example.com","password":"Test1234!Pass"}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["token"])')
+
+# Plugin-Discovery prüfen (listet "garmin" mit status "available")
+curl -s http://localhost:8090/plugins -H "Authorization: $TOKEN" | python3 -m json.tool
+
+# Instanz anlegen (API Key wird serverseitig verschlüsselt gespeichert)
+curl -X POST http://localhost:8090/api/collections/plugin_instances/records -H "Authorization: $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"user":"<user-id>","plugin_id":"garmin","enabled":true,"status":"configured","auth":{"apiKey":"GCDC_..."},"config":{}}'
+
+# Status/Fehler der Instanz verfolgen
+curl -s http://localhost:8090/api/collections/plugin_instances/records/<id> -H "Authorization: $TOKEN"
+```
+
+**Docker-`.env`- Stolperfallen (live getestet):** `POCKETBASE_ENCRYPTION_KEY` muss **exakt 32 Zeichen** lang sein (z. B. `openssl rand -hex 16`), sonst bleibt `wanderer-db` unhealthy; außerdem nötig: `MEILI_MASTER_KEY`, `ORIGIN`, `POCKETBASE_PROXY_SECRET`. Läuft der Stack über Docker Desktop unter Windows, empfiehlt sich ein Run-Verzeichnis auf einem Windows-Laufwerk (z. B. `C:\...`), damit die Bind-Mounts (`./data/plugins` → `/data/plugins`) zuverlässig funktionieren.
 
 ### 🔍 Manuelle Synchronisation
 - **Einstellungen → Plugins → Garmin → Jetzt synchronisieren**
@@ -131,6 +163,8 @@ Danach wie in Schritt 2 beschrieben installieren und Wanderer neu starten.
 | Problem | Lösung |
 |---------|--------|
 | **„Authentifizierung fehlgeschlagen" / `401 Token is not active`** | Der `GCDC_...`-Key ist revoked/abgelaufen – neuen Key unter [connect.garmin.com/app/settings/personalApiToken](https://connect.garmin.com/app/settings/personalApiToken) erstellen (ohne Leerzeichen kopieren). Das Plugin macht den Token-Austausch automatisch; schlägt der aus, ist der Key das Problem |
+| **`auth_failed` mit `404 NotFoundException: Personal API Key with ID … does not exist`** (im Instanz-`last_error`) | Der Key wurde bei Garmin **gelöscht** (revoked) – das Token-Endpunkt antwortet dann mit 404, nicht 401. Neuen Key erstellen und in der Instanz unter `auth.apiKey` eintragen |
+| **`external_id … Value must be unique`** beim Sync | Zwei Syncs liefen gleichzeitig (Cron-Intervall kürzer als die Sync-Dauer). Tritt mit dem Standard-Cron (nächtlich) nicht auf; Intervall nicht unter die Sync-Dauer stellen |
 | **„Keine Aktivitäten gefunden"** | Startdatum prüfen (muss in der Vergangenheit liegen); sicherstellen, dass Aktivitäten im Garmin-Konto existieren |
 | **„Plugin nicht sichtbar"** | Prüfen, ob die 3 Dateien unter `data/plugins/garmin/` liegen (`plugin.json`, `plugin.wasm`, `icon.svg`) und Wanderer **neu starten** |
 | **„Rate Limited"** | 1 Stunde warten; Sync-Häufigkeit reduzieren; Startdatum setzen |
@@ -158,6 +192,7 @@ Alle Angaben wurden mit einem echten Personal API Token gegen die Live-API getes
 - Das Token-Endpunkt antwortet mit `Content-Type: text/plain` (der JWT steht nackt im Body) – `text/plain` muss deshalb in `permissions.downloads.contentTypes` des Manifests erlaubt sein, sonst blockt die Host-Policy den Request (`content type "text/plain" is not allowed by manifest permissions`).
 - Fehler müssen über den **Extism-Fehlerkanal** gemeldet werden (`pdk.SetErrorString` mit JSON `{code, message}` bei Rückgabewert ≠ 0), nicht über `pdk.OutputJSON` – sonst sieht der Host nur den generischen `plugin_error: call <export> failed with code 1`.
 - `sdk.HostRequest` liefert **jeden** HTTP-Status als normalen Rückgabewert; der Plugin-Code muss `resp.Status` selbst prüfen (revoked/deleted Key → `404 {"error":"NotFoundException","message":"Personal API Key with ID … does not exist."}` am Token-Endpunkt, als `auth_failed` im Instanz-`last_error` sichtbar).
+- **Voller Import-Durchlauf im Docker-Stack:** mit gültigem Key lieferte der Cron-Sync 87+ Aktivitäten als Trails (GPX aus `geoPolylineDTO`, Metriken aus `summaryDTO`), inkl. Dedup bereits importierter Aktivitäten bei Folge-Syncs über `trail_external_reference`.
 
 **Build-Artefakt:** `dist/garmin/plugin.wasm` (~295 KB) mit den Exports `list_routes_v1`, `list_activities_v1`, `get_route_detail_v1`, `get_activity_detail_v1`; `plugin.json` valide gegen `plugins/schema/plugin.schema.json` und via `manifestcheck` geprüft.
 
