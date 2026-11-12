@@ -34,11 +34,6 @@
   ],
   "auth": {
     "contexts": {
-      "api_key": {
-        "type": "api_key",
-        "name": "x-api-key",
-        "secretField": "apiKey"
-      },
       "bearer_token": {
         "type": "bearer",
         "secretField": "accessToken"
@@ -53,9 +48,10 @@
           "type": "public_api",
           "fixedBaseURL": "https://personal.connectapi.garmin.com",
           "allowedPathPrefixes": [
-            "/personalapitoken-service",
             "/activitylist-service",
-            "/activity-service"
+            "/activity-service",
+            "/download-service",
+            "/userprofile-service"
           ],
           "auth": [
             "bearer_token"
@@ -64,7 +60,6 @@
       ]
     },
     "auth": [
-      "api_key",
       "bearer_token"
     ],
     "downloads": {
@@ -74,7 +69,6 @@
         "application/gpx+xml",
         "application/xml",
         "text/xml",
-        "text/plain",
         "application/octet-stream",
         "application/zip"
       ]

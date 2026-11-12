@@ -4,6 +4,7 @@ package main
 
 import (
 	"encoding/json"
+	"strconv"
 
 	"github.com/extism/go-pdk"
 )
@@ -108,15 +109,103 @@ func getTrailDetail(kind string) int32 {
 	return 0
 }
 
-// Helper function to fail with an error. The host reads the structured error
-// from the extism error channel (pdk.SetErrorString), not from the output, so
-// the JSON-encoded pluginError must go there.
+// Helper function to fail with an error
+type pluginError struct {
+	Code    string `json:"code"`
+	Message string `json:"message,omitempty"`
+}
+
 func fail(code, message string) int32 {
-	data, err := json.Marshal(pluginError{Code: code, Message: message})
-	if err != nil {
-		pdk.SetErrorString(message)
+	output := struct {
+		Error *pluginError `json:"error,omitempty"`
+	}{
+		Error: &pluginError{
+			Code:    code,
+			Message: message,
+		},
+	}
+
+	// Try to output the error
+	if err := pdk.OutputJSON(output); err != nil {
+		// If we can't output JSON, just return error code
 		return 1
 	}
-	pdk.SetErrorString(string(data))
+
 	return 1
+}
+
+// Helper to parse input and handle errors
+func parseInput(input any) error {
+	data, err := pdk.InputJSON(input)
+	if err != nil {
+		return err
+	}
+
+	// Check if we got valid data
+	if data == nil {
+		return json.Unmarshal([]byte("{}"), &input)
+	}
+
+	return nil
+}
+
+// Helper to output JSON
+func outputJSON(data any) error {
+	return pdk.OutputJSON(data)
+}
+
+// Helper to get string field from map
+func getStringField(m map[string]any, key string) string {
+	if m == nil {
+		return ""
+	}
+	if val, ok := m[key].(string); ok {
+		return val
+	}
+	return ""
+}
+
+// Helper to get int field from map
+func getIntField(m map[string]any, key string) int {
+	if m == nil {
+		return 0
+	}
+	if val, ok := m[key].(float64); ok {
+		return int(val)
+	}
+	if val, ok := m[key].(int); ok {
+		return val
+	}
+	return 0
+}
+
+// Helper to get bool field from map
+func getBoolField(m map[string]any, key string) bool {
+	if m == nil {
+		return false
+	}
+	if val, ok := m[key].(bool); ok {
+		return val
+	}
+	return false
+}
+
+// Helper to get time field from map
+func getTimeField(m map[string]any, key string) (int64, error) {
+	if m == nil {
+		return 0, nil
+	}
+
+	switch val := m[key].(type) {
+	case float64:
+		return int64(val), nil
+	case int64:
+		return val, nil
+	case int:
+		return int64(val), nil
+	case string:
+		return strconv.ParseInt(val, 10, 64)
+	default:
+		return 0, nil
+	}
 }
