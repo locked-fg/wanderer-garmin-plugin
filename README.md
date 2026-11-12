@@ -373,6 +373,54 @@ https://personal.connectapi.garmin.com
 
 ---
 
+## 🔧 Wichtige Hinweise für Entwickler
+
+### Auth-Kontext: Nur EIN Kontext pro Plugin!
+
+**Wichtig:** Wanderer erwartet **genau EINEN Auth-Kontext** pro Plugin. Das Garmin-Plugin hatte ursprünglich zwei Kontexte (`api_key` und `bearer_token`), was dazu führte, dass der Token nicht in der WandererDB gespeichert werden konnte.
+
+**Lösung:** Nur `bearer_token` beibehalten, da:
+- Der Garmin Personal API den API-Key als Bearer-Token verwendet
+- Der Connector bereits `bearer_token` referenziert
+- Alle anderen Plugins (Strava, Hammerhead, Komoot) verwenden ebenfalls nur EINEN Kontext
+
+**Vergleich der Plugins:**
+
+| Plugin | Auth-Kontexte | Token-Speicherung |
+|--------|---------------|-------------------|
+| Strava | 1 (`oauth_access_token`) | ✅ Funktioniert |
+| Hammerhead | 1 (`provider_session`) | ✅ Funktioniert |
+| Komoot | 1 (`provider_session`) | ✅ Funktioniert |
+| Garmin | 1 (`bearer_token`) | ✅ Funktioniert |
+
+### SDK-Typen verwenden
+
+Verwende **SDK-Typen** anstelle von benutzerdefinierten Typen für bessere Konsistenz:
+
+```go
+// ✅ Richtig:
+type listInput = sdk.ListInput
+type detailInput = sdk.DetailInput
+type trailSummary = sdk.TrailSummary
+
+// ❌ Veraltet:
+type listInput struct {
+    Instance sdk.InstanceRef `json:"instance"`
+    Auth     map[string]any  `json:"auth,omitempty"`
+    // ...
+}
+```
+
+### Referenz-Implementierung
+
+Das **Strava-Plugin** ist eine gute Referenz für:
+- Auth-Handling
+- API-Aufrufe
+- Fehlerbehandlung
+- SDK-Nutzung
+
+---
+
 ## 🤝 Mitwirken
 
 Du möchtest das Plugin verbessern? Super! Hier sind ein paar Ideen:
