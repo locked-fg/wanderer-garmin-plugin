@@ -90,7 +90,8 @@ docker compose restart wanderer-db
 3. **Suche nach:** "Garmin"
 4. **Klicke auf:** ➕ Hinzufügen
 5. **Konfiguriere:**
-   - **API Key:** Füge deinen Garmin Token ein (aus Schritt 1)
+   - **accessToken:** Füge deinen Garmin API-Key ein (aus Schritt 1)
+     - ⚠️ **Wichtig:** Feld heißt `accessToken`, aber du trägst hier deinen **API-Key** ein (nicht OAuth!)
    - **Startdatum:** (Optional) z.B. `2024-01-01` – importiert nur Aktivitäten ab diesem Datum
    - **Aktivitäten:** ✅ Aktiviert
    - **Routen:** ⚠️ Optional (noch experimentell)

@@ -134,9 +134,11 @@ docker compose restart wanderer-db
 ### Schritt 2: API Key einrichten
 
 1. Klicke auf das **⚙️ Symbol** neben dem Garmin Plugin
-2. Gib deinen **Garmin Personal API Token** ein:
+2. Gib deinen **Garmin Personal API Token** im **accessToken-Feld** ein:
+   - ⚠️ **Wichtig:** Garmin verwendet einen API-Key (kein OAuth-Token)
    - Den Token hast du zuvor unter [https://connect.garmin.com/app/settings/personalApiToken](https://connect.garmin.com/app/settings/personalApiToken) erstellt
    - Der Token sieht so aus: `abc123def456...`
+   - **Feldname in Wanderer:** `accessToken` (trotz des Namens hier deinen API-Key eintragen!)
 3. (Optional) Setze ein **Startdatum**:
    - Nur Aktivitäten ab diesem Datum werden importiert
    - Nützlich, um alte Aktivitäten schrittweise zu synchronisieren
@@ -361,6 +363,7 @@ https://personal.connectapi.garmin.com
 - **Methode:** Bearer Token (Personal API Key)
 - **Header:** `Authorization: Bearer <API_KEY>`
 - **Kein OAuth** nötig – einfacher API Key
+- **Konfiguration in Wanderer:** API-Key im `accessToken`-Feld eintragen
 
 ### Datenformat
 
