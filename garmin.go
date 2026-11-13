@@ -36,10 +36,7 @@ type tokenExchangeResponse struct {
 
 // logHelper sends a log message to the host
 func logHelper(level sdk.LogLevel, message string) {
-	sdk.HostLog(sdk.HostLogEntry{
-		Level:   level,
-		Message: message,
-	})
+	sdk.Log(level, message)
 }
 
 // Create a new Garmin client
