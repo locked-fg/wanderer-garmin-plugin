@@ -34,11 +34,21 @@ type tokenExchangeResponse struct {
 	TokenType   string `json:"token_type"`
 }
 
+// logHelper sends a log message to the host
+func logHelper(level sdk.LogLevel, message string) {
+	sdk.HostLog(sdk.HostLogEntry{
+		Level:   level,
+		Message: message,
+	})
+}
+
 // Create a new Garmin client
 func newGarminClient(auth map[string]any) (*garminClient, error) {
 	// Try to get access token first (pre-exchanged)
 	accessToken := sdk.StringField(auth, "accessToken")
 	apiKey := sdk.StringField(auth, "apiKey")
+
+	logHelper(sdk.LogLevelDebug, fmt.Sprintf("Garmin: Creating client - hasAccessToken: %v, hasApiKey: %v", accessToken != "", apiKey != ""))
 
 	client := &garminClient{
 		accessToken: accessToken,
@@ -48,21 +58,27 @@ func newGarminClient(auth map[string]any) (*garminClient, error) {
 
 	// If we have an API key but no access token, exchange it
 	if apiKey != "" && accessToken == "" {
+		logHelper(sdk.LogLevelInfo, "Garmin: Exchanging API key for access token")
 		// Exchange API key for access token
 		token, err := client.exchangeAPIKeyForToken()
 		if err != nil {
+			logHelper(sdk.LogLevelError, fmt.Sprintf("Garmin: Token exchange failed: %v", err))
 			return nil, fmt.Errorf("failed to exchange API key for token: %w", err)
 		}
 		client.accessToken = token
+		logHelper(sdk.LogLevelInfo, "Garmin: Token received, waiting 15s for activation")
 		// Give token time to activate (Garmin tokens may need 10-30 seconds)
 		time.Sleep(15 * time.Second)
+		logHelper(sdk.LogLevelInfo, "Garmin: Token activation complete")
 	}
 
 	// If we still don't have an access token, fail
 	if client.accessToken == "" {
+		logHelper(sdk.LogLevelError, "Garmin: No access token available")
 		return nil, fmt.Errorf("accessToken or apiKey is required")
 	}
 
+	logHelper(sdk.LogLevelDebug, "Garmin: Client created successfully")
 	return client, nil
 }
 
@@ -211,14 +227,15 @@ func (c *garminClient) downloadActivity(activityID int64) ([]byte, error) {
 	return body, nil
 }
 
-// Generic request method
+// Generic request method with retry for token activation
 func (c *garminClient) request(path string, query []sdk.QueryParam, contentTypes []string) (sdk.HostResponse, []byte, error) {
 	accept := "application/json"
 	if len(contentTypes) > 0 {
 		accept = contentTypes[0]
 	}
 
-	return sdk.HostRequest(sdk.HostRequestSpec{
+	// First attempt
+	response, body, err := sdk.HostRequest(sdk.HostRequestSpec{
 		Method: "GET",
 		Target: sdk.RequestTarget{
 			Type:      "connector",
@@ -235,6 +252,41 @@ func (c *garminClient) request(path string, query []sdk.QueryParam, contentTypes
 			MaxBytes:     garminDownloadMaxBytes,
 		},
 	})
+
+	// Check if token is not active - retry after additional delay
+	if err == nil && response.Status == 401 {
+		// Check if the error is "token is not active"
+		bodyStr := string(body)
+		if strings.Contains(strings.ToLower(bodyStr), "not active") {
+			logHelper(sdk.LogLevelWarn, "Garmin: Token not active, waiting additional 15s and retrying...")
+			time.Sleep(15 * time.Second)
+			
+			// Retry
+			response, body, err = sdk.HostRequest(sdk.HostRequestSpec{
+				Method: "GET",
+				Target: sdk.RequestTarget{
+					Type:      "connector",
+					Connector: "api",
+					Path:      path,
+					Query:     query,
+				},
+				Headers: map[string]string{
+					sdk.AuthHeaderAuthorization: sdk.AuthSchemeBearer + " " + c.accessToken,
+					"Accept":                    accept,
+				},
+				Expect: sdk.ResponseExpect{
+					ContentTypes: contentTypes,
+					MaxBytes:     garminDownloadMaxBytes,
+				},
+			})
+			
+			if err == nil && response.Status == 200 {
+				logHelper(sdk.LogLevelInfo, "Garmin: Request succeeded after retry")
+			}
+		}
+	}
+
+	return response, body, err
 }
 
 // Sync activities from Garmin
