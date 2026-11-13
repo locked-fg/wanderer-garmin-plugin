@@ -33,10 +33,17 @@
   ],
   "auth": {
     "contexts": {
-      "bearer_token": {
-        "type": "bearer",
+      "api_key": {
+        "type": "api_key",
+        "placement": "header",
+        "name": "ApiKey",
         "fields": ["apiKey"],
         "secretFields": ["apiKey"]
+      },
+      "bearer_token": {
+        "type": "bearer",
+        "fields": ["accessToken"],
+        "secretFields": ["accessToken"]
       }
     }
   },
@@ -55,6 +62,17 @@
           ],
           "auth": [
             "bearer_token"
+          ]
+        },
+        {
+          "name": "token_exchange",
+          "type": "public_api",
+          "fixedBaseURL": "https://personal.connectapi.garmin.com",
+          "allowedPathPrefixes": [
+            "/personalapitoken-service"
+          ],
+          "auth": [
+            "api_key"
           ]
         }
       ]

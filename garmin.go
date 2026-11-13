@@ -23,31 +23,102 @@ const (
 // Garmin client structure
 type garminClient struct {
 	accessToken string
+	apiKey      string
 	baseURL     string
+}
+
+// Token exchange response
+type tokenExchangeResponse struct {
+	AccessToken string `json:"access_token"`
+	ExpiresIn   int    `json:"expires_in"`
+	TokenType   string `json:"token_type"`
 }
 
 // Create a new Garmin client
 func newGarminClient(auth map[string]any) (*garminClient, error) {
-	// Try to get access token first (bearer token from OAuth flow)
-	token := sdk.StringField(auth, "accessToken")
-	if token != "" {
-		return &garminClient{
-			accessToken: token,
-			baseURL:     garminBaseURL,
-		}, nil
-	}
-
-	// Fallback to API key
+	// Try to get access token first (pre-exchanged)
+	accessToken := sdk.StringField(auth, "accessToken")
 	apiKey := sdk.StringField(auth, "apiKey")
-	if apiKey != "" {
-		// For Personal API, the API key is used directly as bearer token
-		return &garminClient{
-			accessToken: apiKey,
-			baseURL:     garminBaseURL,
-		}, nil
+
+	client := &garminClient{
+		accessToken: accessToken,
+		apiKey:      apiKey,
+		baseURL:     garminBaseURL,
 	}
 
-	return nil, fmt.Errorf("accessToken or apiKey is required")
+	// If we have an API key but no access token, exchange it
+	if apiKey != "" && accessToken == "" {
+		// Exchange API key for access token
+		token, err := client.exchangeAPIKeyForToken()
+		if err != nil {
+			return nil, fmt.Errorf("failed to exchange API key for token: %w", err)
+		}
+		client.accessToken = token
+		// Give token time to activate (Garmin tokens may need 10-30 seconds)
+		time.Sleep(15 * time.Second)
+	}
+
+	// If we still don't have an access token, fail
+	if client.accessToken == "" {
+		return nil, fmt.Errorf("accessToken or apiKey is required")
+	}
+
+	return client, nil
+}
+
+// Exchange API key for access token
+func (c *garminClient) exchangeAPIKeyForToken() (string, error) {
+	// Use the token_exchange connector with ApiKey header
+	response, body, err := c.tokenExchangeRequest("/personalapitoken-service/personal-api/personal-api-key/token", []sdk.QueryParam{}, []string{"application/json"})
+	if err != nil {
+		return "", err
+	}
+
+	if response.Status < 200 || response.Status >= 300 {
+		return "", fmt.Errorf("token exchange failed (%d): %s", response.Status, string(body))
+	}
+
+	var tokenResp tokenExchangeResponse
+	if err := json.Unmarshal(body, &tokenResp); err != nil {
+		// Try to parse as plain text (some APIs return just the token)
+		token := strings.TrimSpace(string(body))
+		if token != "" {
+			return token, nil
+		}
+		return "", fmt.Errorf("failed to parse token response: %w", err)
+	}
+
+	if tokenResp.AccessToken == "" {
+		return "", fmt.Errorf("no access token in response")
+	}
+
+	return tokenResp.AccessToken, nil
+}
+
+// Token exchange request using ApiKey header
+func (c *garminClient) tokenExchangeRequest(path string, query []sdk.QueryParam, contentTypes []string) (sdk.HostResponse, []byte, error) {
+	accept := "application/json"
+	if len(contentTypes) > 0 {
+		accept = contentTypes[0]
+	}
+
+	return sdk.HostRequest(sdk.HostRequestSpec{
+		Method: "POST",
+		Target: sdk.RequestTarget{
+			Type:      "connector",
+			Connector: "token_exchange",
+			Path:      path,
+			Query:     query,
+		},
+		Headers: map[string]string{
+			"Authorization": "ApiKey " + c.apiKey,
+			"Accept":        accept,
+		},
+		Expect: sdk.ResponseExpect{
+			ContentTypes: contentTypes,
+			MaxBytes:     garminDownloadMaxBytes,
+		},
+	})
 }
 
 // Search for activities
