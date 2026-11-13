@@ -10,13 +10,31 @@ Dieses Plugin verbindet [Wanderer](https://wanderer.to) mit der [Garmin Personal
 
 **TinyGo ist NICHT im Standard-Wanderer-Container enthalten!**
 
-Da du Wanderer im Docker betreibst und **Nichts auf deinem Host installieren** möchtest, musst du **TinyGo einmalig im Container installieren**:
+Es gibt **zwei Methoden** das Plugin zu bauen – beide erfordern **keine Installation auf deinem Host**:
+
+### 🔹 Methode 1: TinyGo im wanderer-db Container installieren
 
 ```bash
 docker exec -it wanderer-db apt-get update && apt-get install -y tinygo make
 ```
 
-Danach kannst du das Plugin im Container bauen – **ohne etwas auf deinem Host zu installieren!**
+Dann das Plugin im Container bauen:
+```bash
+docker exec -it wanderer-db bash -c "cd /app/plugins/garmin && make build && make install-local"
+```
+
+### 🔹 Methode 2: Separater Dev-Container (empfohlen für Entwicklung)
+
+Verwendet einen eigenständigen TinyGo-Container ohne den wanderer-db Container zu modifizieren:
+
+```bash
+cd wanderer-garmin-plugin
+docker run --rm -v $(pwd):/src -w /src tinygo/tinygo:0.44.0 make build
+```
+
+Dann die Dateien nach `data/plugins/garmin/` kopieren (siehe [Entwicklung & Build-Prozess](#-entwicklung--build-prozess)).
+
+**Beide Methoden funktionieren ohne Go-Installation auf deinem Host!** ✅
 
 ---
 
@@ -236,6 +254,86 @@ Das Plugin mappt Garmin-Aktivitätstypen automatisch zu Wanderer-Kategorien:
 
 ---
 
+## 🔍 API Key Verifizierung & Debugging
+
+Falls du einen "Setup-Fehler" siehst oder unsicher bist, ob dein API Key korrekt gespeichert wurde, kannst du dies mit den mitgelieferten Debugging-Skripten oder direkt in der Datenbank prüfen.
+
+### **📁 Dedizierte Debugging-Skripte**
+
+Dieses Repository enthält mehrere Python-Skripte für das Debugging. **Führe sie vom `wanderer-garmin-plugin/` Verzeichnis aus:**
+
+| Skript | Zweck |
+|--------|-------|
+| `check_auth_fields.py` | Prüft welche Auth-Felder in der Datenbank gespeichert sind |
+| `verify_key.py` | Verifiziert ob der Garmin API Key gespeichert ist |
+| `check_and_trigger_import.py` | Kombiniert: Prüft API Key UND löst Import aus |
+| `trigger_sync.py` | Löst manuell einen Sync/Import aus |
+| `check_plugin_status.py` | Zeigt den Status der Plugin-Instanz an |
+| `check_full_instance.py` | Zeigt alle Daten der Plugin-Instanz |
+| `check_current_error.py` | Zeigt aktuelle Fehler der Plugin-Instanz |
+| `clear_trails.py` | Löscht alle Trails (für Testzwecke) |
+
+**💡 Tipp:** Für die meisten Fälle reicht:
+```bash
+cd wanderer-garmin-plugin
+python3 check_and_trigger_import.py
+```
+
+Detaillierte Dokumentation aller Skripte: [SCRIPTS.md](./SCRIPTS.md)
+
+### **Schnellprüfung (einzeilig):**
+```bash
+python3 -c "import sqlite3,json;conn=sqlite3.connect('/opt/wanderer-dev/data/pb_data/data.db');c=conn.cursor();c.execute('SELECT auth FROM plugin_instances WHERE plugin_id=\"garmin\"');r=c.fetchone();print('✅ API Key gespeichert' if r and 'apiKey' in json.loads(r[0]) else '❌ API Key NICHT gefunden')"
+```
+
+### **Detaillierte Prüfung:**
+```bash
+python3 << 'EOF'
+import sqlite3, json
+conn = sqlite3.connect('/opt/wanderer-dev/data/pb_data/data.db')
+cursor = conn.cursor()
+cursor.execute('SELECT id, plugin_id, auth, status FROM plugin_instances WHERE plugin_id = "garmin"')
+instance = cursor.fetchone()
+if instance:
+    auth = json.loads(instance[2]) if instance[2] else {}
+    print("=== Garmin Plugin Instance ===")
+    print(f"ID: {instance[0]}")
+    print(f"Status: {instance[3]}")
+    print(f"Auth: {json.dumps(auth, indent=2)}")
+    if 'apiKey' in auth:
+        print(f"\n✅ API Key ist gespeichert (Länge: {len(auth['apiKey'])})")
+        print(f"   Beginnt mit: {auth['apiKey'][:20]}...")
+    elif 'accessToken' in auth:
+        print(f"\n✅ Access Token ist gespeichert (Länge: {len(auth['accessToken'])})")
+        print(f"   Beginnt mit: {auth['accessToken'][:20]}...")
+    else:
+        print("\n❌ Kein API Key oder Access Token in der Datenbank!")
+else:
+    print("❌ Keine Garmin Plugin Instanz in der Datenbank gefunden")
+conn.close()
+EOF
+```
+
+### **Letzten Fehler prüfen:**
+```bash
+python3 -c "import sqlite3,json;conn=sqlite3.connect('/opt/wanderer-dev/data/pb_data/data.db');c=conn.cursor();c.execute('SELECT last_error FROM plugin_instances WHERE plugin_id=\"garmin\"');r=c.fetchone();print(json.dumps(json.loads(r[0]),indent=2) if r[0] else '✅ Keine Fehler')"
+```
+
+### **Mögliche Ursachen für "Setup-Fehler":**
+1. **❌ API Key nicht gespeichert** → Datenbank prüfen (siehe oben)
+2. **❌ Ungültiger API Key** → Neue API Key bei Garmin erstellen
+3. **❌ Falsche API Key** → Die bei Garmin gespeicherte Key stimmt nicht mit der in Wanderer überein
+4. **❌ Plugin Manifest Mismatch** → Die `secretField` in plugin.json muss mit dem gespeicherten Feld übereinstimmen
+
+**✅ FIXED:** Das plugin.json verwendet nun korrekt `secretField: "apiKey"` statt "accessToken".
+
+**Quick Fix für ältere Installationen:**
+Falls du eine ältere Version des Plugins hast, wo plugin.json noch `"accessToken"` erwartet:
+- Lade die aktuelle Version herunter oder
+- Ändere manuell in plugin.json: `"secretField": "apiKey"`
+
+---
+
 ## ❓ Häufige Probleme & Lösungen
 
 ### 🔴 **"Authentication Failed" / "Authentifizierung fehlgeschlagen"**
@@ -373,6 +471,134 @@ https://personal.connectapi.garmin.com
 
 ---
 
+## 🛠️ Entwicklung & Build-Prozess
+
+### Docker-basiertes Building (empfohlen)
+
+Da das Plugin in **TinyGo** geschrieben ist und **WASM** als Zielplattform hat, gibt es zwei Build-Methoden:
+
+#### Methode 1: TinyGo im wanderer-db Container installieren
+
+```bash
+# TinyGo und Make im Container installieren
+docker exec -it wanderer-db apt-get update && apt-get install -y tinygo make
+
+# Plugin bauen und installieren
+docker exec -it wanderer-db bash -c "cd /app/plugins/garmin && make build && make install-local"
+docker compose restart wanderer-db
+```
+
+#### Methode 2: Separater Dev-Container (ohne wanderer-db zu modifizieren)
+
+Diese Methode verwendet einen eigenständigen TinyGo-Container und ist ideal für Entwicklung ohne die Produktionsumgebung zu beeinflussen.
+
+```bash
+# In das Plugin-Verzeichnis wechseln
+cd /opt/wanderer-dev/wanderer-garmin-plugin
+
+# Plugin mit TinyGo 0.44.0 bauen (enthält Go 1.27.3)
+docker run --rm -v $(pwd):/src -w /src tinygo/tinygo:0.44.0 make build
+
+# Plugin installieren
+mkdir -p /opt/wanderer-dev/data/plugins/garmin
+cp dist/garmin/plugin.json /opt/wanderer-dev/data/plugins/garmin/
+cp dist/garmin/plugin.wasm /opt/wanderer-dev/data/plugins/garmin/
+cp assets/icon.svg /opt/wanderer-dev/data/plugins/garmin/icon.svg
+
+# Wanderer neustarten
+docker compose restart wanderer-db
+```
+
+**Vorteile:**
+- ✅ Keine Änderungen am wanderer-db Container
+- ✅ Saubere Trennung von Build- und Runtime-Umgebung
+- ✅ Einfacheres Debugging und Testing
+- ✅ Keine Abhängigkeiten auf dem Host
+
+### Makefile-Ziele
+
+| Ziel | Beschreibung |
+|------|--------------|
+| `make build` | Baut das plugin.wasm |
+| `make install` | Baut und kopiert Dateien in dist/garmin/ |
+| `make install-local` | Installiert in ../../../data/plugins/garmin/ |
+| `make clean` | Entfernt Build-Artefakte |
+| `make package` | Erstellt ein tar.gz-Paket für Verteilung |
+
+### Abhängigkeiten
+
+- **TinyGo** ≥ 0.44.0 (empfohlen, enthält Go 1.27.3)
+- **Go** ≥ 1.25.0 (durch TinyGo bereitgestellt)
+- **Make** (für Build-Skripte)
+
+### SDK-Integration
+
+Das Plugin verwendet das **Wanderer Plugin SDK** aus dem Haupt-Repository. Die SDK-Dateien wurden lokal integriert:
+
+```
+wanderer-garmin-plugin/
+├── sdk/
+│   ├── go.mod
+│   ├── types.go
+│   ├── host_http.go
+│   └── ...
+```
+
+Die `go.mod` Datei enthält einen **replace**-Eintrag:
+```go
+replace github.com/open-wanderer/wanderer/plugins/sdk => ./sdk
+```
+
+### Bugfixes und Code-Änderungen
+
+Während des Build-Prozesses wurden folgende Korrekturen vorgenommen:
+
+#### 1. Variable Shadowing in garmin.go (Zeilen 337 & 344)
+
+**Problem:** Die Variable `track` überschattete den Typ `track`:
+```go
+var track track  // ❌ Variable name shadows type
+```
+
+**Lösung:** Umbenennung in `trackData`:
+```go
+var trackData track  // ✅ Different variable name
+```
+
+Alle Referenzen wurden entsprechend aktualisiert.
+
+#### 2. InputJSON in main.go (Zeile 139)
+
+**Problem:** Falsche Annahme über Return-Werte:
+```go
+data, err := pdk.InputJSON(input)  // ❌ Returns 1 value, not 2
+```
+
+**Lösung:** Korrekte Verwendung:
+```go
+err := pdk.InputJSON(&input)  // ✅ Correct: takes pointer, returns error
+```
+
+#### 3. Unused Import in main.go
+
+**Problem:** Import ohne Verwendung:
+```go
+import "encoding/json"  // ❌ Not used
+```
+
+**Lösung:** Import entfernt.
+
+#### 4. TinyGo Version & Flags
+
+**Problem:** Die ursprünglichen Flags `-opt=2 -scheduler=none -gc=none` verursachten WASM-Linker-Fehler:
+```
+wasm-ld: error: main.lto..o: undefined symbol: runtime.alloc
+```
+
+**Lösung:** Aktualisierung auf TinyGo 0.44.0 und Entfernung der problematischen Flags.
+
+---
+
 ## 🔧 Wichtige Hinweise für Entwickler
 
 ### Auth-Kontext: Nur EIN Kontext pro Plugin!
@@ -445,6 +671,26 @@ Du möchtest das Plugin verbessern? Super! Hier sind ein paar Ideen:
 - Teste mit verschiedenen Garmin-Aktivitätstypen
 - Teste mit großen Datenmengen
 - Teste Edge Cases (leere Aktivitäten, fehlende Daten, etc.)
+
+---
+
+## 📝 Versionsgeschichte
+
+### v0.1.0 (2024-11-13)
+- **Erste stabile Version** des Garmin-Plugins
+- Support für Garmin Personal API
+- Import von Aktivitäten mit GPX-Tracks, Metadaten und Fotos
+- Automatische Kategorie-Zuordnung
+
+**Technische Änderungen:**
+- Integration des Wanderer Plugin SDK
+- TinyGo 0.44.0 Support (Go 1.27.3)
+- WASM-Build ohne Host-Go-Installation
+- Code-Fixes:
+  - Variable Shadowing in garmin.go behoben
+  - InputJSON-Verwendung in main.go korrigiert
+  - Unused Import entfernt
+  - TinyGo Flags für WASM-Build angepasst
 
 ---
 
