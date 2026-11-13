@@ -1,4 +1,4 @@
-# Garmin Plugin - Installation Guide (Docker-only)
+# Garmin Plugin - Installation Guide
 
 **All compilation happens in Docker containers - nothing is installed locally!**
 
@@ -12,7 +12,21 @@
 
 ---
 
+## Build Requirements
+
+The following tools are required to build the plugin, but **none need to be installed on your host system**:
+
+- **TinyGo** (version 0.44.0 or later) - for WASM compilation
+- **Make** - for build automation
+- **Go** (optional, only needed if building outside TinyGo container)
+
+These tools run inside Docker containers during the build process.
+
+---
+
 ## Build & Install
+
+### Step-by-step:
 
 ```bash
 # 1. Navigate to plugin directory
@@ -31,7 +45,8 @@ cp assets/icon.svg /opt/wanderer-dev/data/plugins/garmin/
 docker compose restart db
 ```
 
-**One-liner:**
+### One-liner:
+
 ```bash
 cd /opt/wanderer-dev/wanderer-garmin-plugin && \
 docker run --rm -v $(pwd):/src -w /src tinygo/tinygo:0.44.0 make clean build && \
@@ -50,7 +65,7 @@ docker compose restart db
 2. Go to: Settings -> Plugins
 3. Find: "Garmin" and click + Add
 4. Configure:
-   - **apiKey**: Your Garmin Personal API Token (from Step 1)
+   - **apiKey**: Your Garmin Personal API Token (from Garmin Connect settings)
    - Start date: (Optional, e.g., 2024-01-01)
    - Enable: Activities (required), Routes (optional)
 5. Save and Activate
@@ -68,4 +83,6 @@ docker compose restart db
 
 - **Docker-only**: TinyGo runs in `tinygo/tinygo:0.44.0` container
 - **No local installation**: Go, TinyGo, Make not needed on host
-- **Auth field**: Use `apiKey` (not `accessToken`)
+- **Auth field**: Use `apiKey` (your Garmin Personal API Token)
+- **Token activation**: The plugin automatically handles the 15-second token activation delay
+- **Retry logic**: Built-in retry for token activation failures

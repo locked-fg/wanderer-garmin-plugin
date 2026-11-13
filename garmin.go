@@ -81,7 +81,7 @@ func newGarminClient(auth map[string]any) (*garminClient, error) {
 
 // Exchange API key for access token
 func (c *garminClient) exchangeAPIKeyForToken() (string, error) {
-	// Use the token_exchange connector with ApiKey header
+	// Use the api connector with ApiKey header for token exchange
 	response, body, err := c.tokenExchangeRequest("/personalapitoken-service/personal-api/personal-api-key/token", []sdk.QueryParam{}, []string{"application/json"})
 	if err != nil {
 		return "", err
@@ -119,7 +119,7 @@ func (c *garminClient) tokenExchangeRequest(path string, query []sdk.QueryParam,
 		Method: "POST",
 		Target: sdk.RequestTarget{
 			Type:      "connector",
-			Connector: "token_exchange",
+			Connector: "api",
 			Path:      path,
 			Query:     query,
 		},
@@ -257,7 +257,7 @@ func (c *garminClient) request(path string, query []sdk.QueryParam, contentTypes
 		if strings.Contains(strings.ToLower(bodyStr), "not active") {
 			logHelper(sdk.LogLevelWarn, "Garmin: Token not active, waiting additional 15s and retrying...")
 			time.Sleep(15 * time.Second)
-			
+
 			// Retry
 			response, body, err = sdk.HostRequest(sdk.HostRequestSpec{
 				Method: "GET",
@@ -276,7 +276,7 @@ func (c *garminClient) request(path string, query []sdk.QueryParam, contentTypes
 					MaxBytes:     garminDownloadMaxBytes,
 				},
 			})
-			
+
 			if err == nil && response.Status == 200 {
 				logHelper(sdk.LogLevelInfo, "Garmin: Request succeeded after retry")
 			}

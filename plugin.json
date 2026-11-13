@@ -33,17 +33,12 @@
   ],
   "auth": {
     "contexts": {
-      "api_key": {
+      "garmin_api": {
         "type": "api_key",
         "placement": "header",
         "name": "ApiKey",
-        "fields": ["apiKey"],
-        "secretField": "apiKey"
-      },
-      "bearer_token": {
-        "type": "bearer",
-        "fields": ["accessToken"],
-        "secretField": "accessToken"
+        "fields": ["apiKey", "accessToken"],
+        "secretFields": ["apiKey", "accessToken"]
       }
     }
   },
@@ -58,27 +53,17 @@
             "/activitylist-service",
             "/activity-service",
             "/download-service",
-            "/userprofile-service"
-          ],
-          "auth": [
-            "bearer_token"
-          ]
-        },
-        {
-          "name": "token_exchange",
-          "type": "public_api",
-          "fixedBaseURL": "https://personal.connectapi.garmin.com",
-          "allowedPathPrefixes": [
+            "/userprofile-service",
             "/personalapitoken-service"
           ],
           "auth": [
-            "api_key"
+            "garmin_api"
           ]
         }
       ]
     },
     "auth": [
-      "bearer_token"
+      "garmin_api"
     ],
     "downloads": {
       "maxBytes": 16777216,
