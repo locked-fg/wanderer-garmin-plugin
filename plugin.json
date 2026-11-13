@@ -38,12 +38,12 @@
         "placement": "header",
         "name": "ApiKey",
         "fields": ["apiKey"],
-        "secretFields": ["apiKey"]
+        "secretField": "apiKey"
       },
       "bearer_token": {
         "type": "bearer",
         "fields": ["accessToken"],
-        "secretFields": ["accessToken"]
+        "secretField": "accessToken"
       }
     }
   },
