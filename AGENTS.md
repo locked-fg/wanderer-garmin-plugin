@@ -171,6 +171,13 @@ docker compose restart db
 
 ---
 
+## Project Conventions
+
+- **No CHANGES.md**: Keep change history in git commits only
+- Use descriptive commit messages that explain the "what" and "why"
+
+---
+
 ## Requirements
 
 - **TinyGo**: 0.44.0 (includes Go 1.27.3)
