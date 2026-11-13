@@ -3,7 +3,6 @@
 package main
 
 import (
-	"encoding/json"
 	"strconv"
 
 	"github.com/extism/go-pdk"
@@ -136,14 +135,9 @@ func fail(code, message string) int32 {
 
 // Helper to parse input and handle errors
 func parseInput(input any) error {
-	data, err := pdk.InputJSON(input)
+	err := pdk.InputJSON(&input)
 	if err != nil {
 		return err
-	}
-
-	// Check if we got valid data
-	if data == nil {
-		return json.Unmarshal([]byte("{}"), &input)
 	}
 
 	return nil

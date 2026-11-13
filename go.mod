@@ -7,4 +7,4 @@ require (
 	github.com/open-wanderer/wanderer/plugins/sdk v0.0.0
 )
 
-replace github.com/open-wanderer/wanderer/plugins/sdk => ../sdk
+replace github.com/open-wanderer/wanderer/plugins/sdk => ./sdk

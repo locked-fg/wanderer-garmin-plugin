@@ -332,16 +332,16 @@ func mapActivityToTrail(activity *garminActivityDetail, gpxData []byte) (trailIm
 	difficulty := mapDifficulty(activity.Difficulty)
 
 	// Build track from GPX or track points
-	var track track
+	var trackData track
 	if gpxData != nil && len(gpxData) > 0 {
-		track = track{
+		trackData = track{
 			Format:        "gpx",
 			ContentBase64: base64.StdEncoding.EncodeToString(gpxData),
 		}
 	} else if len(activity.Track) > 0 {
 		// Build GPX from track points
 		gpxData := buildGPXFromTrackPoints(activity.Track)
-		track = track{
+		trackData = track{
 			Format:        "gpx",
 			ContentBase64: base64.StdEncoding.EncodeToString(gpxData),
 		}
@@ -383,7 +383,7 @@ func mapActivityToTrail(activity *garminActivityDetail, gpxData []byte) (trailIm
 		StartedAt:    startedAt,
 		ActivityType: activityType,
 		Privacy:      &privacy,
-		Track:        track,
+		Track:        trackData,
 		Waypoints:    []waypoint{}, // Garmin activities don't typically have waypoints
 		Photos:       mapGarminPhotos(activity.Photos),
 		Metadata:     metadata,

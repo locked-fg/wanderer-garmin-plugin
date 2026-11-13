@@ -4,11 +4,17 @@
 
 ---
 
-## 💡 Wichtig: TinyGo im Container
+## 💡 Wichtig: Build-Optionen
 
-**TinyGo ist NICHT im Standard-Wanderer-Container enthalten!**
+Es gibt **zwei Methoden** das Plugin zu bauen:
 
-Da du Wanderer im Docker betreibst und **Nichts auf deinem Host installieren** möchtest, musst du **TinyGo einmalig im Container installieren**. Danach kannst du das Plugin bauen.
+### Methode 1: TinyGo im wanderer-db Container installieren (empfohlen für Produktion)
+TinyGo direkt im laufenden Wanderer-Container installieren.
+
+### Methode 2: Dev-Container mit TinyGo verwenden (empfohlen für Entwicklung)
+Plugin in einem separaten Docker-Container bauen, ohne den Wanderer-Container zu modifizieren.
+
+**Für beide Methoden: Nichts wird auf deinem Host installiert!** ✅
 
 ---
 
@@ -25,7 +31,9 @@ Da du Wanderer im Docker betreibst und **Nichts auf deinem Host installieren** m
 
 ---
 
-## 0️⃣ TinyGo im Container installieren (einmalig!)
+## 0️⃣ Build-Methode wählen
+
+### Option A: TinyGo im wanderer-db Container installieren (einmalig!)
 
 **Führe diesen Befehl nur EINMAL aus:**
 
@@ -34,6 +42,43 @@ docker exec -it wanderer-db apt-get update && apt-get install -y tinygo make
 ```
 
 ✅ **Fertig!** TinyGo und Make sind jetzt im Container verfügbar.
+
+**Dann weiter mit [Schritt 2: Plugin installieren](#2️⃣-plugin-installieren-2-minuten)**
+
+---
+
+### Option B: Dev-Container mit TinyGo (ohne wanderer-db zu modifizieren)
+
+Diese Methode baut das Plugin in einem separaten Container und kopiert die Dateien dann in deinen Daten-Ordner.
+
+**Vorteile:**
+- Keine Änderungen am wanderer-db Container
+- Saubere Trennung von Build- und Runtime-Umgebung
+- Einfacher zu pflegen und zu aktualisieren
+
+**Build-Befehl:**
+
+```bash
+cd /opt/wanderer-dev/wanderer-garmin-plugin
+docker run --rm -v $(pwd):/src -w /src tinygo/tinygo:0.44.0 make build
+```
+
+**Installieren:**
+
+```bash
+# Kopiere die gebauten Dateien in den Daten-Ordner
+mkdir -p /opt/wanderer-dev/data/plugins/garmin
+cp dist/garmin/plugin.json /opt/wanderer-dev/data/plugins/garmin/
+cp dist/garmin/plugin.wasm /opt/wanderer-dev/data/plugins/garmin/
+cp assets/icon.svg /opt/wanderer-dev/data/plugins/garmin/icon.svg
+
+# Wanderer neustarten
+docker compose restart wanderer-db
+```
+
+✅ **Fertig!** Das Plugin ist jetzt installiert.
+
+**Dann weiter mit [Schritt 3: Plugin in Wanderer konfigurieren](#3️⃣-plugin-in-wanderer-konfigurieren-1-minute)**
 
 ---
 
@@ -154,6 +199,47 @@ Jede Aktivität wird als **Trail** in Wanderer importiert mit:
 | **"GPX fehlt"** | Aktivität hat keinen Track (z.B. Krafttraining) – nur Metadaten werden importiert |
 | **"make: command not found"** | TinyGo und Make im Container installieren: `docker exec -it wanderer-db apt-get install -y tinygo make` |
 | **"tinygo: command not found"** | TinyGo im Container installieren: `docker exec -it wanderer-db apt-get install -y tinygo` |
+| **"Setup-Fehler" / API Key prüfen** | Datenbank prüfen: `python3 -c "import sqlite3,json;conn=sqlite3.connect('/opt/wanderer-dev/data/pb_data/data.db');c=conn.cursor();c.execute('SELECT auth FROM plugin_instances WHERE plugin_id=\"garmin\"');print(json.loads(c.fetchone()[0]) if c.fetchone() else 'Kein Eintrag')"` |
+| **Plugin Status prüfen** | Datenbank prüfen: `python3 -c "import sqlite3;conn=sqlite3.connect('/opt/wanderer-dev/data/pb_data/data.db');c=conn.cursor();c.execute('SELECT id,status,enabled FROM plugin_instances WHERE plugin_id=\"garmin\"');print(c.fetchone())"` |
+
+---
+
+## 📚 Technische Notizen für Entwickler
+
+### Code-Fixes während des Builds
+
+Während der Entwicklung wurden folgende Korrekturen am Plugin-Code vorgenommen:
+
+#### 1. Variable Shadowing in `garmin.go`
+- **Problem:** Variable `track` überschattete Typ `track` (Zeilen 337 & 344)
+- **Fix:** Umbenennung in `trackData`
+
+#### 2. Falsche InputJSON-Verwendung in `main.go`
+- **Problem:** `pdk.InputJSON(input)` gibt nur 1 Wert zurück, nicht 2
+- **Fix:** Korrekte Verwendung mit Pointer: `pdk.InputJSON(&input)`
+
+#### 3. Unused Import in `main.go`
+- **Problem:** `encoding/json` wurde importiert aber nicht verwendet
+- **Fix:** Import entfernt
+
+#### 4. TinyGo Version & Flags
+- **Problem:** Flags `-opt=2 -scheduler=none -gc=none` verursachten WASM-Linker-Fehler
+- **Fix:** Aktualisierung auf TinyGo 0.44.0, problematische Flags entfernt
+
+### SDK-Integration
+
+Das Plugin verwendet das **Wanderer Plugin SDK**. Die SDK-Dateien wurden lokal unter `wanderer-garmin-plugin/sdk/` integriert und in `go.mod` per replace-Direktive eingebunden:
+
+```go
+replace github.com/open-wanderer/wanderer/plugins/sdk => ./sdk
+```
+
+Dies ermöglicht die Entwicklung ohne Abhängigkeit vom Haupt-Repository.
+
+### Makefile-Anpassungen
+
+- **TINYGO_VERSION:** Aktualisiert von 0.32.0 auf 0.44.0
+- **TINYGO_FLAGS:** Leer gelassen (Flag-Entfernung nötig für erfolgreichen Build)
 
 ---
 

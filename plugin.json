@@ -1,5 +1,4 @@
 {
-  "$schema": "../schema/plugin.schema.json",
   "manifestVersion": "1.0",
   "id": "garmin",
   "type": "trails",
@@ -36,7 +35,8 @@
     "contexts": {
       "bearer_token": {
         "type": "bearer",
-        "secretField": "accessToken"
+        "fields": ["apiKey"],
+        "secretFields": ["apiKey"]
       }
     }
   },

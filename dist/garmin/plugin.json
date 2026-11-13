@@ -1,155 +1,146 @@
 {
-  "$schema": "../schema/plugin.schema.json",
-  "auth": {
-    "contexts": {
-      "api_key": {
-        "name": "x-api-key",
-        "secretField": "apiKey",
-        "type": "api_key"
-      },
-      "bearer_token": {
-        "secretField": "accessToken",
-        "type": "bearer"
-      }
-    }
+  "manifestVersion": "1.0",
+  "id": "garmin",
+  "type": "trails",
+  "name": "Garmin",
+  "description": "Imports Garmin activities and routes into wanderer.",
+  "version": "0.1.0",
+  "runtime": {
+    "type": "wasm",
+    "entrypoint": "plugin.wasm"
   },
   "capabilities": [
     {
-      "export": "list_routes_v1",
       "name": "list_routes",
-      "version": "v1"
+      "version": "v1",
+      "export": "list_routes_v1"
     },
     {
-      "export": "get_route_detail_v1",
       "name": "get_route_detail",
-      "version": "v1"
+      "version": "v1",
+      "export": "get_route_detail_v1"
     },
     {
-      "export": "list_activities_v1",
       "name": "list_activities",
-      "version": "v1"
+      "version": "v1",
+      "export": "list_activities_v1"
     },
     {
-      "export": "get_activity_detail_v1",
       "name": "get_activity_detail",
-      "version": "v1"
+      "version": "v1",
+      "export": "get_activity_detail_v1"
     }
   ],
+  "auth": {
+    "contexts": {
+      "bearer_token": {
+        "type": "bearer",
+        "fields": ["apiKey"],
+        "secretFields": ["apiKey"]
+      }
+    }
+  },
+  "permissions": {
+    "network": {
+      "connectors": [
+        {
+          "name": "api",
+          "type": "public_api",
+          "fixedBaseURL": "https://personal.connectapi.garmin.com",
+          "allowedPathPrefixes": [
+            "/activitylist-service",
+            "/activity-service",
+            "/download-service",
+            "/userprofile-service"
+          ],
+          "auth": [
+            "bearer_token"
+          ]
+        }
+      ]
+    },
+    "auth": [
+      "bearer_token"
+    ],
+    "downloads": {
+      "maxBytes": 16777216,
+      "contentTypes": [
+        "application/json",
+        "application/gpx+xml",
+        "application/xml",
+        "text/xml",
+        "application/octet-stream",
+        "application/zip"
+      ]
+    }
+  },
   "configSchema": [
     {
-      "description": "Ignore activities and routes before this date.",
-      "descriptions": {
-        "de": "Aktivitäten und Routen vor diesem Datum ignorieren.",
-        "en": "Ignore activities and routes before this date."
-      },
       "key": "after",
+      "type": "date",
       "label": "Start date",
       "labels": {
         "de": "Startdatum",
         "en": "Start date"
       },
-      "type": "date"
+      "description": "Ignore activities and routes before this date.",
+      "descriptions": {
+        "de": "Aktivitäten und Routen vor diesem Datum ignorieren.",
+        "en": "Ignore activities and routes before this date."
+      }
     }
   ],
-  "description": "Imports Garmin activities and routes into wanderer.",
   "hostConfig": {
     "categoryMapping": {
-      "alpine_skiing": {
-        "category": "Skiing",
-        "subcategory": "Alpine"
-      },
-      "backcountry_skiing": {
-        "category": "Skiing",
-        "subcategory": "Backcountry"
-      },
-      "climbing": "Climbing",
-      "cross_country_skiing": {
-        "category": "Skiing",
-        "subcategory": "Cross-country"
-      },
-      "cycling": {
-        "category": "Biking",
-        "subcategory": "Road"
-      },
-      "e_bike_cargo": {
-        "category": "Biking",
-        "subcategory": "E-Bike"
-      },
-      "e_bike_mountain": {
-        "category": "Biking",
-        "subcategory": "E-Bike"
-      },
-      "e_bike_road": {
-        "category": "Biking",
-        "subcategory": "E-Bike"
-      },
-      "gravel_cycling": {
-        "category": "Biking",
-        "subcategory": "Gravel"
-      },
+      "running": { "category": "Running", "subcategory": "Road" },
+      "trail_running": { "category": "Running", "subcategory": "Trail" },
+      "cycling": { "category": "Biking", "subcategory": "Road" },
+      "mountain_biking": { "category": "Biking", "subcategory": "MTB" },
+      "gravel_cycling": { "category": "Biking", "subcategory": "Gravel" },
       "hiking": "Hiking",
-      "ice_climbing": "Climbing",
-      "kayaking": "Canoeing",
-      "mountain_biking": {
-        "category": "Biking",
-        "subcategory": "MTB"
-      },
-      "other": "Other",
-      "paddle_boarding": "Canoeing",
-      "rock_climbing": "Climbing",
-      "rowing": "Canoeing",
-      "running": {
-        "category": "Running",
-        "subcategory": "Road"
-      },
+      "walking": "Walking",
+      "swimming": "Other",
       "skiing": "Skiing",
       "snowboarding": "Skiing",
-      "swimming": "Other",
-      "trail_running": {
-        "category": "Running",
-        "subcategory": "Trail"
-      },
-      "walking": "Walking"
+      "cross_country_skiing": { "category": "Skiing", "subcategory": "Cross-country" },
+      "alpine_skiing": { "category": "Skiing", "subcategory": "Alpine" },
+      "backcountry_skiing": { "category": "Skiing", "subcategory": "Backcountry" },
+      "kayaking": "Canoeing",
+      "rowing": "Canoeing",
+      "paddle_boarding": "Canoeing",
+      "climbing": "Climbing",
+      "rock_climbing": "Climbing",
+      "ice_climbing": "Climbing",
+      "e_bike_mountain": { "category": "Biking", "subcategory": "E-Bike" },
+      "e_bike_road": { "category": "Biking", "subcategory": "E-Bike" },
+      "e_bike_cargo": { "category": "Biking", "subcategory": "E-Bike" },
+      "other": "Other"
     }
   },
-  "id": "garmin",
-  "manifestVersion": "1.0",
   "metadata": {
     "descriptions": {
       "de": "Importiert Garmin-Aktivitäten und -Routen in wanderer.",
       "en": "Imports Garmin activities and routes into wanderer."
     },
-    "homepageUrl": "https://developer.garmin.com/gc-developer-program/personal/personal-api/",
-    "icons": {
-      "light": "icon.svg"
-    },
     "information": {
       "de": "Dieses Plugin verbindet wanderer über die offizielle Garmin Personal API mit deinem Garmin-Konto. Es importiert Aktivitäten, Routen und zugehörige Daten. Für die Verbindung hinterlegst du deinen persönlichen Garmin API-Key.",
       "en": "This plugin connects wanderer to your Garmin account through the official Garmin Personal API. It imports activities, routes, and their data. To connect, provide your Garmin Personal API key."
     },
+    "homepageUrl": "https://developer.garmin.com/gc-developer-program/personal/personal-api/",
+    "icons": {
+      "light": "icon.svg"
+    },
     "providerCategories": {
-      "alpine_skiing": {
+      "running": {
         "labels": {
-          "de": "Ski alpin",
-          "en": "Alpine skiing"
+          "de": "Laufen",
+          "en": "Running"
         }
       },
-      "backcountry_skiing": {
+      "trail_running": {
         "labels": {
-          "de": "Skitour",
-          "en": "Backcountry skiing"
-        }
-      },
-      "climbing": {
-        "labels": {
-          "de": "Klettern",
-          "en": "Climbing"
-        }
-      },
-      "cross_country_skiing": {
-        "labels": {
-          "de": "Langlauf",
-          "en": "Cross-country skiing"
+          "de": "Trailrun",
+          "en": "Trail running"
         }
       },
       "cycling": {
@@ -158,22 +149,10 @@
           "en": "Cycling"
         }
       },
-      "e_bike_cargo": {
+      "mountain_biking": {
         "labels": {
-          "de": "E-Lastrad",
-          "en": "E-Cargo bike"
-        }
-      },
-      "e_bike_mountain": {
-        "labels": {
-          "de": "E-Mountainbike",
-          "en": "E-MTB"
-        }
-      },
-      "e_bike_road": {
-        "labels": {
-          "de": "E-Rennrad",
-          "en": "E-Road bike"
+          "de": "Mountainbiking",
+          "en": "Mountain biking"
         }
       },
       "gravel_cycling": {
@@ -188,52 +167,16 @@
           "en": "Hiking"
         }
       },
-      "ice_climbing": {
+      "walking": {
         "labels": {
-          "de": "Eisklettern",
-          "en": "Ice climbing"
+          "de": "Gehen",
+          "en": "Walking"
         }
       },
-      "kayaking": {
+      "swimming": {
         "labels": {
-          "de": "Kajakfahren",
-          "en": "Kayaking"
-        }
-      },
-      "mountain_biking": {
-        "labels": {
-          "de": "Mountainbiking",
-          "en": "Mountain biking"
-        }
-      },
-      "other": {
-        "labels": {
-          "de": "Sonstiges",
-          "en": "Other"
-        }
-      },
-      "paddle_boarding": {
-        "labels": {
-          "de": "Stand-up-Paddling",
-          "en": "Paddle boarding"
-        }
-      },
-      "rock_climbing": {
-        "labels": {
-          "de": "Felsklettern",
-          "en": "Rock climbing"
-        }
-      },
-      "rowing": {
-        "labels": {
-          "de": "Rudern",
-          "en": "Rowing"
-        }
-      },
-      "running": {
-        "labels": {
-          "de": "Laufen",
-          "en": "Running"
+          "de": "Schwimmen",
+          "en": "Swimming"
         }
       },
       "skiing": {
@@ -248,66 +191,84 @@
           "en": "Snowboarding"
         }
       },
-      "swimming": {
+      "cross_country_skiing": {
         "labels": {
-          "de": "Schwimmen",
-          "en": "Swimming"
+          "de": "Langlauf",
+          "en": "Cross-country skiing"
         }
       },
-      "trail_running": {
+      "alpine_skiing": {
         "labels": {
-          "de": "Trailrun",
-          "en": "Trail running"
+          "de": "Ski alpin",
+          "en": "Alpine skiing"
         }
       },
-      "walking": {
+      "backcountry_skiing": {
         "labels": {
-          "de": "Gehen",
-          "en": "Walking"
+          "de": "Skitour",
+          "en": "Backcountry skiing"
+        }
+      },
+      "kayaking": {
+        "labels": {
+          "de": "Kajakfahren",
+          "en": "Kayaking"
+        }
+      },
+      "rowing": {
+        "labels": {
+          "de": "Rudern",
+          "en": "Rowing"
+        }
+      },
+      "paddle_boarding": {
+        "labels": {
+          "de": "Stand-up-Paddling",
+          "en": "Paddle boarding"
+        }
+      },
+      "climbing": {
+        "labels": {
+          "de": "Klettern",
+          "en": "Climbing"
+        }
+      },
+      "rock_climbing": {
+        "labels": {
+          "de": "Felsklettern",
+          "en": "Rock climbing"
+        }
+      },
+      "ice_climbing": {
+        "labels": {
+          "de": "Eisklettern",
+          "en": "Ice climbing"
+        }
+      },
+      "e_bike_mountain": {
+        "labels": {
+          "de": "E-Mountainbike",
+          "en": "E-MTB"
+        }
+      },
+      "e_bike_road": {
+        "labels": {
+          "de": "E-Rennrad",
+          "en": "E-Road bike"
+        }
+      },
+      "e_bike_cargo": {
+        "labels": {
+          "de": "E-Lastrad",
+          "en": "E-Cargo bike"
+        }
+      },
+      "other": {
+        "labels": {
+          "de": "Sonstiges",
+          "en": "Other"
         }
       }
     }
-  },
-  "name": "Garmin",
-  "permissions": {
-    "auth": [
-      "api_key",
-      "bearer_token"
-    ],
-    "downloads": {
-      "contentTypes": [
-        "application/json",
-        "application/gpx+xml",
-        "application/xml",
-        "text/xml",
-        "text/plain",
-        "application/octet-stream",
-        "application/zip"
-      ],
-      "maxBytes": 16777216
-    },
-    "network": {
-      "connectors": [
-        {
-          "allowedPathPrefixes": [
-            "/personalapitoken-service",
-            "/activitylist-service",
-            "/activity-service"
-          ],
-          "auth": [
-            "bearer_token"
-          ],
-          "fixedBaseURL": "https://personal.connectapi.garmin.com",
-          "name": "api",
-          "type": "public_api"
-        }
-      ]
-    }
-  },
-  "runtime": {
-    "entrypoint": "plugin.wasm",
-    "type": "wasm"
-  },
-  "type": "trails",
-  "version": "0.1.0"
+  }
 }

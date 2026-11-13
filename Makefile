@@ -6,10 +6,10 @@ PLUGIN_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 DIST_DIR := $(PLUGIN_DIR)/dist/$(PLUGIN_ID)
 
 # TinyGo settings
-TINYGO_VERSION ?= 0.32.0
+TINYGO_VERSION ?= 0.44.0
 TINYGO ?= tinygo
-TINYGO_TARGET ?= wasm
-TINYGO_FLAGS ?= -opt=2 -scheduler=none -gc=none
+TINYGO_TARGET ?= wasi
+TINYGO_FLAGS ?= -scheduler=none -no-debug
 
 # Plugin files
 PLUGIN_FILES := plugin.json plugin.wasm icon.svg
