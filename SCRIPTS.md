@@ -15,7 +15,8 @@ This directory contains Python scripts for debugging and managing the Garmin plu
 - **`check_and_trigger_import.py`** - Combined script: checks API key + triggers import
 
 ### 🧹 Database Cleanup
-- **`clear_trails.py`** - Deletes all trails from the database (for testing)
+- **`clear_trails.py`** - Deletes all trails and related data from the database (for testing)
+- **`clear_all_activity_data.py`** - Deletes ALL activity-related data including trails, ActivityPub activities, feed entries, and summit logs (complete cleanup)
 
 ### 📊 Status Checks
 - **`check_plugin_status.py`** - Checks the plugin instance status
