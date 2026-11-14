@@ -3,6 +3,7 @@
 package main
 
 import (
+	"encoding/json"
 	"strconv"
 
 	"github.com/extism/go-pdk"
@@ -115,21 +116,12 @@ type pluginError struct {
 }
 
 func fail(code, message string) int32 {
-	output := struct {
-		Error *pluginError `json:"error,omitempty"`
-	}{
-		Error: &pluginError{
-			Code:    code,
-			Message: message,
-		},
-	}
-
-	// Try to output the error
-	if err := pdk.OutputJSON(output); err != nil {
-		// If we can't output JSON, just return error code
+	data, err := json.Marshal(pluginError{Code: code, Message: message})
+	if err != nil {
+		pdk.SetErrorString(message)
 		return 1
 	}
-
+	pdk.SetErrorString(string(data))
 	return 1
 }
 

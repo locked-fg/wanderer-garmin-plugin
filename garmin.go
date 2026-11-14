@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -82,7 +83,7 @@ func newGarminClient(auth map[string]any) (*garminClient, error) {
 // Exchange API key for access token
 func (c *garminClient) exchangeAPIKeyForToken() (string, error) {
 	// Use the token_exchange connector without auth, manually set ApiKey header
-	response, body, err := c.tokenExchangeRequest("/personalapitoken-service/personal-api/personal-api-key/token", []sdk.QueryParam{}, []string{"application/json"})
+	response, body, err := c.tokenExchangeRequest("/personalapitoken-service/personal-api/personal-api-key/token", []sdk.QueryParam{}, []string{"application/json", "text/plain"})
 	if err != nil {
 		return "", err
 	}
@@ -111,11 +112,6 @@ func (c *garminClient) exchangeAPIKeyForToken() (string, error) {
 // Token exchange request using ApiKey header
 // Uses token_exchange connector without auth to manually set ApiKey header
 func (c *garminClient) tokenExchangeRequest(path string, query []sdk.QueryParam, contentTypes []string) (sdk.HostResponse, []byte, error) {
-	accept := "application/json"
-	if len(contentTypes) > 0 {
-		accept = contentTypes[0]
-	}
-
 	return sdk.HostRequest(sdk.HostRequestSpec{
 		Method: "POST",
 		Target: sdk.RequestTarget{
@@ -126,8 +122,10 @@ func (c *garminClient) tokenExchangeRequest(path string, query []sdk.QueryParam,
 		},
 		Headers: map[string]string{
 			"Authorization": "ApiKey " + c.apiKey,
-			"Accept":        accept,
-			"Content-Type":  "application/json",
+			// Garmin's token endpoint rejects Accept: application/json with 406.
+			// Its documented request omits Accept; */* preserves that behavior
+			// while the response is still validated as JSON by the host.
+			"Accept": "*/*",
 		},
 		Expect: sdk.ResponseExpect{
 			ContentTypes: contentTypes,
@@ -138,8 +136,6 @@ func (c *garminClient) tokenExchangeRequest(path string, query []sdk.QueryParam,
 
 // Search for activities
 func (c *garminClient) searchActivities(page int, limit int, after time.Time) ([]garminActivity, error) {
-	var result garminActivitySearch
-
 	query := []sdk.QueryParam{
 		{Name: "start", Value: strconv.Itoa((page - 1) * limit)},
 		{Name: "limit", Value: strconv.Itoa(limit)},
@@ -162,11 +158,23 @@ func (c *garminClient) searchActivities(page int, limit int, after time.Time) ([
 		return nil, fmt.Errorf("Garmin API request failed (%d): %s", response.Status, string(body))
 	}
 
-	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, fmt.Errorf("failed to parse activities: %w", err)
+	var activities []garminActivity
+	trimmedBody := bytes.TrimSpace(body)
+	if len(trimmedBody) == 0 {
+		return nil, fmt.Errorf("failed to parse activities: empty response")
 	}
-
-	return result.Activities, nil
+	if trimmedBody[0] == '[' {
+		if err := json.Unmarshal(trimmedBody, &activities); err != nil {
+			return nil, fmt.Errorf("failed to parse activities: %w", err)
+		}
+	} else {
+		var result garminActivitySearch
+		if err := json.Unmarshal(trimmedBody, &result); err != nil {
+			return nil, fmt.Errorf("failed to parse activities: %w", err)
+		}
+		activities = result.Activities
+	}
+	return activities, nil
 }
 
 // Get activity details
