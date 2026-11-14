@@ -2,15 +2,11 @@
 
 Requires Docker and a running Wanderer instance. TinyGo runs in Docker; no host Go tools are needed.
 
-From the project directory, build and install the plugin, then restart Wanderer’s database service:
+Build and install with the project’s Makefile, then restart Wanderer’s database service:
 
 ```bash
-cd /opt/wanderer-dev/wanderer-garmin-plugin
-docker run --rm -v "$PWD:/src" -w /src tinygo/tinygo:0.44.0 make clean build
-rm -rf ../data/plugins/garmin
-mkdir -p ../data/plugins/garmin
-cp dist/garmin/plugin.wasm plugin.json assets/icon.svg ../data/plugins/garmin/
-cd ..
+cd /opt/wanderer-dev
+docker run --rm -v "$PWD:/workspace" -w /workspace/wanderer-garmin-plugin tinygo/tinygo:0.44.0 make clean install-local
 docker compose restart db
 ```
 

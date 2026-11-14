@@ -4,6 +4,8 @@
 PLUGIN_ID := garmin
 PLUGIN_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 DIST_DIR := $(PLUGIN_DIR)/dist/$(PLUGIN_ID)
+WANDERER_DATA_DIR ?= $(abspath $(PLUGIN_DIR)/../data)
+LOCAL_PLUGIN_DIR := $(WANDERER_DATA_DIR)/plugins/$(PLUGIN_ID)
 
 # TinyGo settings
 TINYGO_VERSION ?= 0.44.0
@@ -50,13 +52,11 @@ package: build
 	@echo "Package created: ../../wanderer-plugin-$(PLUGIN_ID).tar.gz"
 
 # Install to local wanderer data directory
-install-local: build
+install-local: install
 	@echo "Installing to local wanderer..."
-	@mkdir -p ../../../data/plugins/$(PLUGIN_ID)
-	cp $(DIST_DIR)/plugin.json ../../../data/plugins/$(PLUGIN_ID)/
-	cp $(DIST_DIR)/plugin.wasm ../../../data/plugins/$(PLUGIN_ID)/
-	cp $(PLUGIN_DIR)/assets/icon.svg ../../../data/plugins/$(PLUGIN_ID)/icon.svg
-	@echo "Plugin installed to: ../../../data/plugins/$(PLUGIN_ID)"
+	@mkdir -p $(LOCAL_PLUGIN_DIR)
+	cp $(DIST_DIR)/plugin.json $(DIST_DIR)/plugin.wasm $(DIST_DIR)/icon.svg $(LOCAL_PLUGIN_DIR)/
+	@echo "Plugin installed to: $(LOCAL_PLUGIN_DIR)"
 
 # Build all plugins
 plugins-build:
