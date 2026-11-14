@@ -46,6 +46,14 @@
     "network": {
       "connectors": [
         {
+          "name": "token_exchange",
+          "type": "public_api",
+          "fixedBaseURL": "https://personal.connectapi.garmin.com",
+          "allowedPathPrefixes": [
+            "/personalapitoken-service"
+          ]
+        },
+        {
           "name": "api",
           "type": "public_api",
           "fixedBaseURL": "https://personal.connectapi.garmin.com",
@@ -53,8 +61,7 @@
             "/activitylist-service",
             "/activity-service",
             "/download-service",
-            "/userprofile-service",
-            "/personalapitoken-service"
+            "/userprofile-service"
           ],
           "auth": [
             "garmin_api"

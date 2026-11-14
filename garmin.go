@@ -81,7 +81,7 @@ func newGarminClient(auth map[string]any) (*garminClient, error) {
 
 // Exchange API key for access token
 func (c *garminClient) exchangeAPIKeyForToken() (string, error) {
-	// Use the api connector with ApiKey header for token exchange
+	// Use the token_exchange connector without auth, manually set ApiKey header
 	response, body, err := c.tokenExchangeRequest("/personalapitoken-service/personal-api/personal-api-key/token", []sdk.QueryParam{}, []string{"application/json"})
 	if err != nil {
 		return "", err
@@ -109,6 +109,7 @@ func (c *garminClient) exchangeAPIKeyForToken() (string, error) {
 }
 
 // Token exchange request using ApiKey header
+// Uses token_exchange connector without auth to manually set ApiKey header
 func (c *garminClient) tokenExchangeRequest(path string, query []sdk.QueryParam, contentTypes []string) (sdk.HostResponse, []byte, error) {
 	accept := "application/json"
 	if len(contentTypes) > 0 {
@@ -119,13 +120,14 @@ func (c *garminClient) tokenExchangeRequest(path string, query []sdk.QueryParam,
 		Method: "POST",
 		Target: sdk.RequestTarget{
 			Type:      "connector",
-			Connector: "api",
+			Connector: "token_exchange",
 			Path:      path,
 			Query:     query,
 		},
 		Headers: map[string]string{
 			"Authorization": "ApiKey " + c.apiKey,
 			"Accept":        accept,
+			"Content-Type":  "application/json",
 		},
 		Expect: sdk.ResponseExpect{
 			ContentTypes: contentTypes,
