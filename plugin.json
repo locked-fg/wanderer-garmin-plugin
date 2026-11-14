@@ -33,12 +33,10 @@
   ],
   "auth": {
     "contexts": {
-      "garmin_api": {
-        "type": "api_key",
-        "placement": "header",
-        "name": "ApiKey",
-        "fields": ["apiKey", "accessToken"],
-        "secretFields": ["apiKey", "accessToken"]
+      "bearer_token": {
+        "type": "bearer",
+        "fields": ["apiKey"],
+        "secretField": "apiKey"
       }
     }
   },
@@ -64,13 +62,13 @@
             "/userprofile-service"
           ],
           "auth": [
-            "garmin_api"
+            "bearer_token"
           ]
         }
       ]
     },
     "auth": [
-      "garmin_api"
+      "bearer_token"
     ],
     "downloads": {
       "maxBytes": 16777216,
