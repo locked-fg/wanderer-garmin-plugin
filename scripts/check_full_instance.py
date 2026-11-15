@@ -23,10 +23,13 @@ if row:
         elif col in ['auth', 'config', 'state', 'last_error']:
             try:
                 parsed = json.loads(val)
-                print(f"{col}:")
-                print(f"  {json.dumps(parsed, indent=2)}")
+                if col == 'auth':
+                    print(f"{col}: fields={list(parsed.keys())} (values redacted)")
+                else:
+                    print(f"{col}:")
+                    print(f"  {json.dumps(parsed, indent=2)}")
             except:
-                print(f"{col}: {val[:100]}...")
+                print(f"{col}: value omitted (could not parse safely)")
         else:
             print(f"{col}: {val}")
 else:

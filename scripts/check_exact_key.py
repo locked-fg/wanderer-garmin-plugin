@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Check the exact API key value in the database.
+Check whether a Garmin API key is present and inspect its format without printing it.
 """
 import sqlite3
 import json
@@ -23,8 +23,7 @@ if row:
     print("=" * 60)
     print(f"Instance ID: {instance_id}")
     print(f"Plugin ID: {plugin_id}")
-    print(f"Auth JSON: {auth}")
-    print(f"\nAPI Key value: {api_key[:100]}...")
+    print(f"Auth field present: {'apiKey' in auth_data}")
     print(f"API Key length: {len(api_key)}")
     
     # Check if it's the test key or real key

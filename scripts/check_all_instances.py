@@ -22,7 +22,7 @@ for row in rows:
         try:
             auth_data = json.loads(auth)
             api_key = auth_data.get('apiKey', '')
-            print(f"API Key: {api_key[:80]}...")
+            print(f"API key present: {bool(api_key)}")
             
             if api_key.startswith('GCDC_'):
                 parts = api_key.split('.')
@@ -33,6 +33,6 @@ for row in rows:
             else:
                 print(f"  ℹ️  Encrypted/Unknown format")
         except:
-            print(f"Auth: {auth}")
+            print("Auth data exists but could not be parsed (value redacted)")
 
 conn.close()

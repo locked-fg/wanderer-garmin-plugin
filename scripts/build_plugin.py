@@ -23,7 +23,7 @@ import sys
 from pathlib import Path
 
 # Configuration
-PLUGIN_DIR = Path(__file__).parent.resolve()
+PLUGIN_DIR = Path(__file__).resolve().parent.parent
 WANDERER_ROOT = PLUGIN_DIR.parent.resolve()
 DIST_DIR = PLUGIN_DIR / "dist" / "garmin"
 INSTALL_DIR = WANDERER_ROOT / "data" / "plugins" / "garmin"

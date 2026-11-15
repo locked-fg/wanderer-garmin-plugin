@@ -51,7 +51,7 @@ def check_garmin_key():
             print(f"\n✅ API key is SAVED in database")
             print(f"   Instance ID: {instance_id}")
             print(f"   Key length: {len(api_key)} characters")
-            print(f"   Key preview: {api_key[:50]}...")
+            print("   Credential value is redacted")
             
             # Check if it's encrypted (PocketBase encrypts auth fields)
             if api_key.startswith('mN'):

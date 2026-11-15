@@ -80,10 +80,10 @@ def check_plugin_status(db_path, quiet=False):
                     
                     if is_encrypted:
                         print(f"✅ apiKey is SAVED (encrypted, length: {key_len})")
-                        print(f"   Starts with: {auth['apiKey'][:40]}...")
+                        print("   Credential value is redacted")
                     else:
                         print(f"✅ apiKey is SAVED (plain, length: {key_len})")
-                        print(f"   Value: {auth['apiKey']}")
+                        print("   Credential value is redacted")
                 elif 'accessToken' in auth:
                     print(f"✅ accessToken is SAVED (length: {len(auth['accessToken'])})")
                 else:

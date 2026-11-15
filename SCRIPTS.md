@@ -1,126 +1,29 @@
-# Garmin Plugin Debugging Scripts
+# Helper scripts
 
-## Overview
-This directory contains Python scripts for debugging and managing the Garmin plugin.
+Optional Python utilities live in `scripts/`. Run them from the plugin repository root so their paths to the sibling Wanderer `data/` directory resolve correctly:
 
-## Available Scripts
-
-### 🔍 Check API Key
-- **`verify_key.py`** - Verifies the Garmin API key is saved in the database
-- **`check_auth_fields.py`** - Checks what auth fields exist in the plugin instance
-- **`check_exact_key.py`** - Checks if the API key matches the exact expected value
-
-### 🔄 Trigger Import
-- **`trigger_sync.py`** - Triggers a plugin sync by updating the timestamp
-- **`check_and_trigger_import.py`** - Combined script: checks API key + triggers import
-
-### 🧹 Database Cleanup
-- **`clear_trails.py`** - Deletes all trails and related data from the database (for testing)
-- **`clear_all_activity_data.py`** - Deletes ALL activity-related data including trails, ActivityPub activities, feed entries, and summit logs (complete cleanup)
-- **`reset_wanderer_data.py`** - Reports or deletes Activities (`summit_logs`) and Routes (`trails`) through the Wanderer API, then verifies deletion through the API
-
-### 📊 Status Checks
-- **`check_plugin_status.py`** - Checks the plugin instance status
-- **`check_all_instances.py`** - Lists all plugin instances
-- **`check_current_error.py`** - Checks for current errors in plugin instances
-- **`check_full_instance.py`** - Shows full plugin instance data
-
-### 🔐 WASM Verification
-- **`check_wasm.py`** - Verifies the WASM module has correct exports
-- **`verify_build.py`** - Verifies the plugin build
-
-### ⚡ Build Scripts
-- **`build_plugin.py`** - Builds the plugin WASM using Docker
-
-### 🗃️ Database
-- **`decrypt_test.py`** - Tests decryption of encrypted auth fields
-
----
-
-## Usage Examples
-
-### Check if API Key is Saved
 ```bash
-python3 check_auth_fields.py
-python3 verify_key.py
+cd /opt/wanderer-dev/wanderer-garmin-plugin
+python3 scripts/check_plugin_status.py
 ```
 
-### Trigger Import
-```bash
-python3 trigger_sync.py
-# or
-python3 check_and_trigger_import.py
-```
+## Build and verification
 
-### Check Plugin Status
-```bash
-python3 check_plugin_status.py
-```
+- `build_plugin.py`: build, optionally install, and verify the WASM using Docker (`--help` for options).
+- `check_wasm.py`: inspect a WASM file's imports and size.
+- `verify_build.py`: check plugin manifest/auth configuration.
 
-### Build Plugin
-```bash
-python3 build_plugin.py
-```
+## Diagnostics
 
-### Clear Trails (for testing)
-```bash
-python3 clear_trails.py
-```
+- `check_plugin_status.py`, `check_all_instances.py`, `check_current_error.py`, `check_full_instance.py`: inspect plugin instance state and errors.
+- `check_auth_fields.py`, `verify_key.py`, `check_exact_key.py`, `check_and_trigger_import.py`: inspect saved auth fields. These scripts do not print a stored credential in full.
+- `trigger_sync.py`, `check_and_trigger_import.py`: trigger a sync.
+- `decrypt_test.py`, `test_save_process.py`: inspect/test local save and encryption behavior.
 
-### Reset Routes and Activities through the API
-```bash
-# Report counts and Garmin sync status only; prompts for the Wanderer API token
-python3 reset_wanderer_data.py
+## Data cleanup
 
-# Delete Activities and Routes, then verify both collections are empty
-python3 reset_wanderer_data.py --delete
-```
-The token can also be supplied through `WANDERER_API_TOKEN`. The helper uses
-the API for both deletion and verification so normal authorization and record
-hooks run. It leaves ActivityPub history untouched apart from events generated
-by Wanderer's delete hooks.
+- `reset_wanderer_data.py`: report or delete routes and activities through the Wanderer API; supports a confirmation-oriented `--delete` mode.
+- `clear_trails.py`, `clear_all_activity_data.py`: delete local activity/trail records from SQLite; inspect `--help` and use `--dry-run` before deletion.
+- `clear_meilisearch.py`: clear the local Meilisearch index.
 
----
-
-## Common Workflows
-
-### 1. Verify Setup and Trigger Import
-```bash
-# Check if API key is saved
-python3 check_auth_fields.py
-
-# Trigger import
-python3 trigger_sync.py
-```
-
-### 2. Full Debug Cycle
-```bash
-# Check plugin status
-python3 check_plugin_status.py
-
-# Verify API key
-python3 verify_key.py
-
-# Trigger sync
-python3 trigger_sync.py
-
-# Check status again
-python3 check_plugin_status.py
-```
-
-### 3. Clean Database for Testing
-```bash
-# Clear all trails
-python3 clear_trails.py
-
-# Trigger fresh import
-python3 trigger_sync.py
-```
-
----
-
-## Notes
-- All scripts use relative path `../data/pb_data/data.db` to access the PocketBase database
-- Scripts are designed to be run from this directory: `wanderer-garmin-plugin/`
-- Auth fields (like API keys) are encrypted by PocketBase, so they appear as encrypted strings in the database
-- The `mN` prefix in encrypted values indicates PocketBase's encryption format
+Cleanup scripts are destructive. Use them only against a disposable development instance and check their options before running. Scripts that query SQLite expect the development checkout at `/opt/wanderer-dev` by default; scripts with a `--db-path` option can target a different database.

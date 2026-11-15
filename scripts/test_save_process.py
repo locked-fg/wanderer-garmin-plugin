@@ -33,7 +33,7 @@ def test_save_process():
     print(f"   Instance ID: {instance_id}")
     print(f"   Plugin ID: {plugin_id}")
     print(f"   Last Updated: {updated}")
-    print(f"   API Key (encrypted): {api_key[:60]}...")
+    print("   Credential value is redacted")
     print(f"   Key Length: {len(api_key)} characters")
     
     # Check if the key is encrypted
@@ -66,7 +66,7 @@ def test_save_process():
     elif is_plaintext_old:
         print(f"   ⚠️  Key is the old incorrect plaintext key")
     else:
-        print(f"   ℹ️  Key format: {api_key[:20]}...")
+        print("   ℹ️  Key format: unrecognized (value redacted)")
     
     print("\n📝 Conclusion:")
     if is_base64 and not is_plaintext_1234 and not is_plaintext_gcdc:

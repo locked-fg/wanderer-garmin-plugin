@@ -21,8 +21,9 @@ import json
 import os
 import sys
 
-GARMIN_PLUGIN_JSON = "/opt/wanderer-dev/wanderer-garmin-plugin/plugin.json"
-STRAVA_PLUGIN_JSON = "/opt/wanderer-dev/wanderer-sdk-source/plugins/strava/plugin.json"
+PLUGIN_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+GARMIN_PLUGIN_JSON = os.path.join(PLUGIN_DIR, "plugin.json")
+STRAVA_PLUGIN_JSON = os.path.join(os.path.dirname(PLUGIN_DIR), "wanderer-sdk-source", "plugins", "strava", "plugin.json")
 
 
 def load_plugin_json(path):

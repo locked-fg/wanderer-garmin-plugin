@@ -1,8 +1,6 @@
-# Garmin Plugin Installation
+# Install
 
-Requires Docker and a running Wanderer instance. TinyGo runs in Docker; no host Go tools are needed.
-
-Build and install with the project’s Makefile, then restart Wanderer’s database service:
+From the Wanderer repository root, build and copy the plugin into its local data directory:
 
 ```bash
 cd /opt/wanderer-dev
@@ -10,4 +8,6 @@ docker run --rm -v "$PWD:/workspace" -w /workspace/wanderer-garmin-plugin tinygo
 docker compose restart db
 ```
 
-In Wanderer, add the Garmin plugin and enter your [Garmin Personal API token](https://connect.garmin.com/app/settings/personalApiToken) in the `apiKey` field. Then save and sync.
+The command installs `plugin.wasm`, `plugin.json`, and `icon.svg` to `data/plugins/garmin/`. In Wanderer, add Garmin under **Settings → Plugins**, enter a Garmin Personal API token in `apiKey`, optionally set `after`, then save and sync.
+
+To build without installing, run the same Docker command with `make clean build`. See [DEVELOPMENT.md](DEVELOPMENT.md) for tests and build details.

@@ -40,12 +40,12 @@ def verify_garmin_key():
             print(f"   Instance ID: {instance_id}")
             print(f"   Plugin ID: {plugin_id}")
             print(f"   Key format: Valid (starts with GCDC_)")
-            print(f"   Key preview: {api_key[:40]}...")
+            print("   Credential value is redacted")
             return True
         else:
             print(f"⚠️  Key found but format may be incorrect")
             print(f"   Expected format: GCDC_<uuid>.<uuid>.<base64>.<timestamp>")
-            print(f"   Actual key: {api_key[:50]}...")
+            print("   Credential value is redacted")
             return False
             
     except Exception as e:
