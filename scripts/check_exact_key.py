@@ -4,8 +4,9 @@ Check whether a Garmin API key is present and inspect its format without printin
 """
 import sqlite3
 import json
+from paths import database_path
 
-conn = sqlite3.connect('../data/pb_data/data.db')
+conn = sqlite3.connect(database_path())
 cursor = conn.cursor()
 
 cursor.execute(

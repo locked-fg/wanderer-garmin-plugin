@@ -6,9 +6,10 @@ This checks that PocketBase is encrypting and storing the API key properly.
 import sqlite3
 import json
 import base64
+from paths import database_path
 
 def test_save_process():
-    conn = sqlite3.connect('../data/pb_data/data.db')
+    conn = sqlite3.connect(database_path())
     cursor = conn.cursor()
     
     print("=" * 70)

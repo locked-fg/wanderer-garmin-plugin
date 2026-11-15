@@ -6,8 +6,9 @@ This should cause PocketBase to re-sync.
 import sqlite3
 import json
 from datetime import datetime
+from paths import database_path
 
-conn = sqlite3.connect('../data/pb_data/data.db')
+conn = sqlite3.connect(database_path())
 cursor = conn.cursor()
 
 # Clear any errors and update the timestamp

@@ -30,22 +30,25 @@ go test ./internal/garmintrack
 Build the distributable files into `dist/garmin/`:
 
 ```bash
-docker run --rm -v "$PWD:/workspace" -w /workspace/wanderer-garmin-plugin tinygo/tinygo:0.44.0 make clean install
+docker run --rm -v "$PWD:/workspace" -w /workspace tinygo/tinygo:0.44.0 make clean install
 ```
 
 Install into the sibling Wanderer checkout's `data/plugins/garmin/` directory:
 
 ```bash
-docker run --rm -v "$PWD:/workspace" -w /workspace/wanderer-garmin-plugin tinygo/tinygo:0.44.0 make clean install-local
+docker run --rm \
+  -v "$PWD/..:/workspace" \
+  -w "/workspace/$(basename "$PWD")" \
+  tinygo/tinygo:0.44.0 make clean install-local
 ```
 
-From the Wanderer repository root, restart the database service to reload plugin files:
+From the Wanderer repository root (the parent of the plugin directory), restart the database service to reload plugin files:
 
 ```bash
 docker compose restart db
 ```
 
-`make clean` removes generated build output. `/dist/` is ignored by Git. `make install-local` uses `WANDERER_DATA_DIR` if set; otherwise it installs to the sibling `data/` directory.
+`make clean` removes generated build output. `/dist/` is ignored by Git. `make install-local` uses `WANDERER_DATA_DIR` if set; otherwise it installs to the sibling `data/` directory. The install command mounts the parent directory so that default location is available inside Docker.
 
 ## Development checks
 

@@ -26,7 +26,10 @@ from pathlib import Path
 PLUGIN_DIR = Path(__file__).resolve().parent.parent
 WANDERER_ROOT = PLUGIN_DIR.parent.resolve()
 DIST_DIR = PLUGIN_DIR / "dist" / "garmin"
-INSTALL_DIR = WANDERER_ROOT / "data" / "plugins" / "garmin"
+WANDERER_DATA_DIR = Path(
+    os.environ.get("WANDERER_DATA_DIR", WANDERER_ROOT / "data")
+).expanduser().resolve()
+INSTALL_DIR = WANDERER_DATA_DIR / "plugins" / "garmin"
 
 # Docker image for TinyGo
 TINYGO_DOCKER_IMAGE = "tinygo/tinygo:0.44.0"

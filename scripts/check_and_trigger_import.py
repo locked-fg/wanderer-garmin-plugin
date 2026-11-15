@@ -7,6 +7,7 @@ import sqlite3
 import json
 import sys
 from datetime import datetime, timezone
+from paths import database_path
 
 def check_garmin_key():
     """Check if Garmin API key is saved in the database."""
@@ -15,7 +16,7 @@ def check_garmin_key():
     print("=" * 70)
     
     try:
-        conn = sqlite3.connect('../data/pb_data/data.db')
+        conn = sqlite3.connect(database_path())
         cursor = conn.cursor()
         
         # Get the plugin instance
@@ -75,7 +76,7 @@ def trigger_import():
     print("=" * 70)
     
     try:
-        conn = sqlite3.connect('../data/pb_data/data.db')
+        conn = sqlite3.connect(database_path())
         cursor = conn.cursor()
         
         now = datetime.now(timezone.utc).isoformat(timespec='milliseconds') + 'Z'

@@ -7,7 +7,7 @@ Usage:
 
 Options:
     --db-path    Path to the PocketBase data.db file
-                 Default: /opt/wanderer-dev/data/pb_data/data.db
+                 Default: pb_data/data.db under WANDERER_DATA_DIR
     --dry-run    Show what would be deleted without actually deleting
     --quiet      Suppress verbose output
 
@@ -42,8 +42,9 @@ Notes:
 import argparse
 import sqlite3
 import sys
+from paths import database_path
 
-DEFAULT_DB_PATH = "/opt/wanderer-dev/data/pb_data/data.db"
+DEFAULT_DB_PATH = str(database_path())
 
 RELATED_TABLES = [
     "trail_external_reference",

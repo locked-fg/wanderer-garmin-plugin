@@ -5,10 +5,11 @@ Usage: python3 verify_key.py
 """
 import sqlite3
 import json
+from paths import database_path
 
 def verify_garmin_key():
     try:
-        conn = sqlite3.connect('../data/pb_data/data.db')
+        conn = sqlite3.connect(database_path())
         cursor = conn.cursor()
         
         cursor.execute(

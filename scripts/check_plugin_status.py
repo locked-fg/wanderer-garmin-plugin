@@ -6,7 +6,7 @@ Usage:
     python3 check_plugin_status.py [--db-path /path/to/data.db]
 
 Options:
-    --db-path    Path to PocketBase data.db (default: /opt/wanderer-dev/data/pb_data/data.db)
+    --db-path    Path to PocketBase data.db (default: pb_data/data.db under WANDERER_DATA_DIR)
     --quiet      Suppress verbose output
 """
 
@@ -14,8 +14,9 @@ import argparse
 import sqlite3
 import json
 import sys
+from paths import database_path
 
-DEFAULT_DB_PATH = "/opt/wanderer-dev/data/pb_data/data.db"
+DEFAULT_DB_PATH = str(database_path())
 
 
 def check_plugin_status(db_path, quiet=False):

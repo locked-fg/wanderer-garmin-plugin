@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 import sqlite3
 import json
+from paths import database_path
 
-conn = sqlite3.connect('../data/pb_data/data.db')
+conn = sqlite3.connect(database_path())
 cursor = conn.cursor()
 
 cursor.execute('SELECT last_error, status, updated FROM plugin_instances WHERE plugin_id = "garmin"')

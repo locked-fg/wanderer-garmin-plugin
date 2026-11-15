@@ -6,7 +6,7 @@ Usage:
     python3 check_wasm.py [--file /path/to/plugin.wasm]
 
 Options:
-    --file    Path to WASM file (default: /opt/wanderer-dev/data/plugins/garmin/plugin.wasm)
+    --file    Path to WASM file (default: plugins/garmin/plugin.wasm under WANDERER_DATA_DIR)
     --quiet   Suppress verbose output
 
 Description:
@@ -22,8 +22,9 @@ import argparse
 import os
 import subprocess
 import sys
+from paths import installed_plugin_dir
 
-DEFAULT_WASM_PATH = "/opt/wanderer-dev/data/plugins/garmin/plugin.wasm"
+DEFAULT_WASM_PATH = str(installed_plugin_dir() / "plugin.wasm")
 
 
 def check_wasm_file(filepath, quiet=False):
