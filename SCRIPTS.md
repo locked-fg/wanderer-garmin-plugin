@@ -17,6 +17,7 @@ This directory contains Python scripts for debugging and managing the Garmin plu
 ### 🧹 Database Cleanup
 - **`clear_trails.py`** - Deletes all trails and related data from the database (for testing)
 - **`clear_all_activity_data.py`** - Deletes ALL activity-related data including trails, ActivityPub activities, feed entries, and summit logs (complete cleanup)
+- **`reset_wanderer_data.py`** - Reports or deletes Activities (`summit_logs`) and Routes (`trails`) through the Wanderer API, then verifies deletion through the API
 
 ### 📊 Status Checks
 - **`check_plugin_status.py`** - Checks the plugin instance status
@@ -65,6 +66,19 @@ python3 build_plugin.py
 ```bash
 python3 clear_trails.py
 ```
+
+### Reset Routes and Activities through the API
+```bash
+# Report counts only; prompts for the Wanderer API token
+python3 reset_wanderer_data.py
+
+# Delete Activities and Routes, then verify both collections are empty
+python3 reset_wanderer_data.py --delete
+```
+The token can also be supplied through `WANDERER_API_TOKEN`. The helper uses
+the API for both deletion and verification so normal authorization and record
+hooks run. It leaves ActivityPub history untouched apart from events generated
+by Wanderer's delete hooks.
 
 ---
 
