@@ -29,7 +29,6 @@ Das Plugin baut und installiert erfolgreich. Die Garmin-Activities werden import
 - Garmin-Auth und API-Aufruf erfolgreich; es kamen 50 und danach 7 Aktivitäten, alle eligible.
 - Beim ersten Detail: 3266 `geoPolylineDTO`-Punkte; die erzeugte Plugin-Payload enthielt ebenfalls 3266 Punkte (GPX Base64: 265920 Bytes).
 - Sync-Status wurde als `configured` abgeschlossen, `last_error` war leer (`{}`). Datenbank blieb bei 0 Trails und 0 `trail_external_reference`-Einträgen.
-- Im selben Lauf meldete Strava separat einen ungültigen Token (401); das ist ein Strava-Problem und erklärt den fehlenden Garmin-Import nicht direkt.
 - Nach dem Diagnose-Lauf wurde der DB-Container neu erstellt; seine aktuellen Logs enthalten nur den Start um 07:43 und können den Sync nicht mehr belegen.
 - Der damalige Laufzeitvergleich zeigte, dass `flomp/wanderer-db:v0.21.2` älter als der lokale Host-Quellstand war. Deshalb fehlten Host-Diagnosemarker. Ein Host-Image-Neubau war dafür jedoch nicht nötig: ausführliche Plugin-Logs machten den fehlerhaften `startedAt`-Wert sichtbar.
 - `syncActivities` erzeugt Summaries mit Provider `garmin` und `externalId`; Garmin-Trackpunkte kamen bis zur Plugin-Payload. Der Fehler lag im `startedAt`-Feld der Detailantwort und wurde im Plugin behoben.
@@ -42,7 +41,6 @@ Das Plugin baut und installiert erfolgreich. Die Garmin-Activities werden import
 - `mapActivityToTrail` normalisiert `startTimeGMT` jetzt mit `parseActivityStartTime` und formatiert es in UTC als RFC3339; bei nicht parsebarem Zeitwert wird `startedAt` ausgelassen.
 - Erneut gebaut/installiert und einen einzelnen Lauf ausgeführt. Logbeispiel: `startedAt: "2026-10-12T16:09:45Z"`, 3266 Trackpunkte, GPX Base64 265920 Bytes.
 - Ergebnis: Garmin-Status `configured`, `last_error={}`, 57 unterschiedliche Garmin-Aktivitätsreferenzen und 48 Trails. Mehrere Garmin-Referenzen können auf denselben Trail zeigen; der Host kann Aktivitäten zusammenführen. Wanderer-Images wurden nicht verändert. Cron wieder auf täglich 02:00 UTC zurückgesetzt.
-- Strava lieferte weiterhin separat 401 (`invalid` access token); das betrifft Garmin nicht.
 
 ### A. Lokalen Parser vorbereiten — erledigt
 
@@ -65,7 +63,6 @@ Das Plugin baut und installiert erfolgreich. Die Garmin-Activities werden import
 1. In der GUI prüfen, ob die importierten Aktivitäten/Trails sichtbar sind.
 2. Bei Bedarf die 57 Garmin-Referenzen mit den 48 Trails abgleichen, insbesondere die durch Auto-Merge zusammengeführten Aktivitäten.
 3. Die ausführlichen Diagnose-Logs nach Bestätigung in der GUI reduzieren; sie enthalten pro Aktivität IDs, Metadaten und eine GPX-Vorschau.
-4. Den separaten Strava-401-Fehler unabhängig davon beheben.
 
 ## Wiederholung des Garmin-Sync-Diagnoselaufs (nur falls neue API-Daten erforderlich sind)
 
