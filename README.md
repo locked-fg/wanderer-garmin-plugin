@@ -16,6 +16,21 @@ Activities are requested in pages of 50. The plugin continues while Garmin retur
 
 - `main.go`, `garmin.go`, `types.go`: plugin entry points, Garmin client, and response mapping.
 - `internal/garmintrack/`: parser for activity detail and track responses.
-- `sdk/`: local Wanderer plugin SDK module used by the build.
+- `go.mod`: pins the Wanderer plugin SDK version used by the build.
 - `testdata/`: sanitized Garmin response fixtures used by parser tests.
 - `scripts/`: optional build, verification, and Wanderer debugging helpers.
+
+The build downloads the pinned SDK module from `go.mod`; a separate SDK checkout is not required. To look up or edit the SDK source locally, clone the full Wanderer repository beside this plugin repository:
+
+```bash
+git clone https://github.com/open-wanderer/wanderer.git ../wanderer-sdk-source
+```
+
+The resulting layout is:
+
+```text
+parent-directory/
+├── wanderer-garmin-plugin/
+└── wanderer-sdk-source/
+    └── plugins/sdk/
+```

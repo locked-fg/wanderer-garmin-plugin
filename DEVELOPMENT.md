@@ -11,7 +11,7 @@ The plugin implements Wanderer's `list_activities`, `get_activity_detail`, `list
 - `internal/garmintrack/`: activity-detail JSON and track parser.
 - `internal/garmintrack/parser_test.go`: fixture-based parser tests.
 - `testdata/`: sanitized example API responses used by those tests.
-- `sdk/`: local Wanderer plugin SDK module referenced from `go.mod`.
+- `go.mod`: pins the Wanderer plugin SDK module version used by this plugin.
 - `scripts/`: optional build and instance-debugging helpers.
 
 ## Requirements
@@ -20,11 +20,25 @@ Docker is the supported build environment; host Go/TinyGo installations are not 
 
 ## Test and build
 
-Run Go tests for the parser and local SDK from this directory:
+Run the parser tests from this directory in the supported Docker environment:
 
 ```bash
-go test ./internal/garmintrack
-(cd sdk && go test ./...)
+docker run --rm -v "$PWD:/workspace" -w /workspace tinygo/tinygo:0.44.0 go test ./internal/garmintrack
+```
+
+The SDK version is pinned in `go.mod` and is downloaded during the build, so a separate checkout is not required to build the plugin. To inspect or edit the SDK source locally, clone the full Wanderer repository from this directory:
+
+```bash
+git clone https://github.com/open-wanderer/wanderer.git ../wanderer-sdk-source
+```
+
+This creates the sibling layout below; the SDK module is under `plugins/sdk/`:
+
+```text
+parent-directory/
+├── wanderer-garmin-plugin/
+└── wanderer-sdk-source/
+    └── plugins/sdk/
 ```
 
 Build the distributable files into `dist/garmin/`:
