@@ -92,9 +92,15 @@ docker compose restart db
 3. Find: "Garmin" and click + Add
 4. Configure:
    - **apiKey**: Your Garmin Personal API Token (from Garmin Connect settings)
-   - Start date: (Optional, e.g., 2024-01-01)
+   - **Start date (`after`)**: Optional earliest activity date, e.g. `2024-01-01`. Leave it unset to import all activities Garmin makes available.
    - Enable: Activities (required), Routes (optional)
 5. Save and Activate
+
+### Importing older activities
+
+The start date limits which activities are eligible for import; it does not set a maximum number of activities. The plugin requests activities in pages of 50 using Garmin's `start` and `limit` parameters, then requests subsequent pages while the previous page is full. It finishes when Garmin returns a page with fewer than 50 activities. For example, a sync that receives 50 activities followed by 7 continues through both pages.
+
+Set `after` to the earliest date you want included, or leave it unset for the full history available through Garmin's API. Allow the sync to finish; a failed API request can interrupt a run, so check the plugin sync status and logs if the import appears incomplete.
 
 ---
 
