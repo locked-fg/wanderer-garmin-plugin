@@ -41,6 +41,7 @@ Das Plugin baut und installiert erfolgreich. Die Garmin-Activities werden import
 - `mapActivityToTrail` normalisiert `startTimeGMT` jetzt mit `parseActivityStartTime` und formatiert es in UTC als RFC3339; bei nicht parsebarem Zeitwert wird `startedAt` ausgelassen.
 - Erneut gebaut/installiert und einen einzelnen Lauf ausgeführt. Logbeispiel: `startedAt: "2026-10-12T16:09:45Z"`, 3266 Trackpunkte, GPX Base64 265920 Bytes.
 - Ergebnis: Garmin-Status `configured`, `last_error={}`, 57 unterschiedliche Garmin-Aktivitätsreferenzen und 48 Trails. Mehrere Garmin-Referenzen können auf denselben Trail zeigen; der Host kann Aktivitäten zusammenführen. Wanderer-Images wurden nicht verändert. Cron wieder auf täglich 02:00 UTC zurückgesetzt.
+- Abgleich der 57 Referenzen abgeschlossen: `merge.enabled=true`; zehn Garmin-Referenzen zeigen auf denselben Trail (`Lenggries Express`), die übrigen 47 jeweils auf einen eigenen Trail. Das ergibt 48 Trails. Der Host-Merge-Code hängt externe Referenzen an den behaltenen Trail um und löscht den Quell-Trail; damit ist die Differenz 57→48 durch das aktivierte Auto-Merge erklärt.
 
 ### A. Lokalen Parser vorbereiten — erledigt
 
@@ -60,9 +61,9 @@ Das Plugin baut und installiert erfolgreich. Die Garmin-Activities werden import
 
 ## Nächste Schritte
 
-1. In der GUI prüfen, ob die importierten Aktivitäten/Trails sichtbar sind.
-2. Bei Bedarf die 57 Garmin-Referenzen mit den 48 Trails abgleichen, insbesondere die durch Auto-Merge zusammengeführten Aktivitäten.
-3. Die ausführlichen Diagnose-Logs nach Bestätigung in der GUI reduzieren; sie enthalten pro Aktivität IDs, Metadaten und eine GPX-Vorschau.
+1. Import ist in der GUI bestätigt; der Abgleich 57 Referenzen zu 48 Trails ist erledigt.
+2. Als nächsten Schritt Diagnose-Logs so reduzieren, dass Summary-ID, normalisierter Startzeitpunkt, Trackpunktzahl und GPX-Größe bleiben; GPX-Vorschau nur bei Bedarf ausgeben.
+3. Falls jede Garmin-Aktivität als eigener Trail gewünscht ist, `merge.enabled` für die Garmin-Instanz deaktivieren. Aktuell bleibt Auto-Merge aktiv und führt ähnliche Aktivitäten zusammen.
 
 ## Wiederholung des Garmin-Sync-Diagnoselaufs (nur falls neue API-Daten erforderlich sind)
 
