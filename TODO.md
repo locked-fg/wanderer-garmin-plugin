@@ -1,142 +1,89 @@
-# Garmin Plugin - TODO List
+# Garmin Plugin – Arbeitsstand
 
-## 🎯 **Current Status: Partially Working**
+Stand: 2026-11-15
 
-### ✅ **What's Working**
-- Plugin loads without "Setup-Fehler" in Wanderer UI
-- Plugin icon displays correctly (GA text)
-- API key can be saved in database (encrypted by PocketBase)
-- Token exchange endpoint works (returns JWT access token)
-- Plugin capabilities and configuration are correct
+## Kurzstatus
 
-### ❌ **What's NOT Working**
-- **Token activation issue**: Access tokens return "Token is not active" when used
-- Import/sync process cannot complete
-- Activities are not being imported from Garmin
+Das Plugin baut und installiert erfolgreich. Die Garmin-Activities werden importiert. Ursache des bisherigen Fehlers war ein ungültiges `startedAt`-Format; die Zeit wird jetzt als RFC3339 ausgegeben. Der letzte Lauf legte 57 Garmin-Referenzen an; diese zeigen auf 48 Trail-Datensätze.
 
----
+## Was bereits getan wurde
 
-## 🔍 **Key Discoveries**
+- Garmin-Antwortformat direkt geprüft und in `README.md` dokumentiert:
+  - Token-Endpunkt: `200 text/plain`.
+  - Aktivitätssuche: `200`, oberstes JSON-Element ist ein Array; `activityType` und `privacy` sind Objekte; `calories` ist numerisch; Zeitfelder sind Strings.
+  - `/activity-service/activity/{id}/details` liefert ein JSON-Objekt mit `geoPolylineDTO`, `activityDetailMetrics` und `metricDescriptors`.
+  - Der getestete Download `/download-service/files/activity/{id}` ist ein ZIP mit einer `.fit`-Datei, nicht mit GPX.
+- Offiziellen Garmin-Client nach `garmin-personal-api-python/` geklont und geprüft. Er hat Wrapper für Aktivitätsübersicht, Workouts und ZIP-Download; für `/details` gibt es keinen eigenen Wrapper, aber der generische `get()`-Aufruf kann ihn anfragen.
+- Parser an die Listenantwort angepasst (Array, Objekttypen, Dezimalwerte und Garmin-Zeitformate).
+- Sessionweiten Token-Cache ergänzt, damit der API-Key nicht für jedes Detail neu getauscht wird.
+- Import auf `geoPolylineDTO` und als Rückfall auf `activityDetailMetrics` umgestellt. Garmin lieferte bei einem geprüften Detail `3266` Polyline-Punkte und `249` Messwertzeilen.
+- Eine sichere Diagnose ergänzt, die nur Struktur/Zählwerte protokolliert, keine Aktivitätenwerte oder Zugangsdaten:
+  - Track-Punktanzahl und Messwert-Feldnamen.
+  - Anzahl der Trackpunkte und GPX-Größe in der erzeugten Importantwort.
+- TinyGo-Build (`0.44.0`) war erfolgreich; das Plugin wurde lokal installiert.
+- Ein einzelner Sync-Lauf fand 50 + 7 Aktivitäten und endete ohne gespeicherten Fehler, aber die Datenbank zeigte weiterhin 0 Trails und 0 Garmin-Referenzen. Deshalb ist der Import noch nicht verifiziert.
 
-### 1. **Garmin Authentication Flow**
-Garmin Personal API uses **two-step authentication**:
-```
-1. Exchange API Key for Access Token
-   POST https://personal.connectapi.garmin.com/personalapitoken-service/personal-api/personal-api-key/token
-   Authorization: ApiKey {api_key}
-   
-2. Use Access Token for API calls
-   GET https://personal.connectapi.garmin.com/activitylist-service/activities/...
-   Authorization: Bearer {access_token}
-```
+## Nächste Schritte
 
-### 2. **Token Structure**
-- API Key format: `GCDC_{uuid}.{uuid}.{base64}.{timestamp}`
-- Access Token: JWT with RS256 signature
-- JWT contains: scopes, client_id, garmin_guid, managed_status
+### Letzter lokaler Diagnose-Lauf (2026-11-15)
 
-### 3. **The Blocking Issue**
-Access tokens have `managed_status: "DEFAULT"` instead of `"ACTIVE"`.
-Garmin's API returns: `401 - Token is not active`
+- Einmaliger Sync um 07:40 UTC; Cron danach wieder auf täglich 02:00 UTC gesetzt und DB-Service mit der normalen Konfiguration neu gestartet.
+- Garmin-Auth und API-Aufruf erfolgreich; es kamen 50 und danach 7 Aktivitäten, alle eligible.
+- Beim ersten Detail: 3266 `geoPolylineDTO`-Punkte; die erzeugte Plugin-Payload enthielt ebenfalls 3266 Punkte (GPX Base64: 265920 Bytes).
+- Sync-Status wurde als `configured` abgeschlossen, `last_error` war leer (`{}`). Datenbank blieb bei 0 Trails und 0 `trail_external_reference`-Einträgen.
+- Im selben Lauf meldete Strava separat einen ungültigen Token (401); das ist ein Strava-Problem und erklärt den fehlenden Garmin-Import nicht direkt.
+- Nach dem Diagnose-Lauf wurde der DB-Container neu erstellt; seine aktuellen Logs enthalten nur den Start um 07:43 und können den Sync nicht mehr belegen.
+- Der damalige Laufzeitvergleich zeigte, dass `flomp/wanderer-db:v0.21.2` älter als der lokale Host-Quellstand war. Deshalb fehlten Host-Diagnosemarker. Ein Host-Image-Neubau war dafür jedoch nicht nötig: ausführliche Plugin-Logs machten den fehlerhaften `startedAt`-Wert sichtbar.
+- `syncActivities` erzeugt Summaries mit Provider `garmin` und `externalId`; Garmin-Trackpunkte kamen bis zur Plugin-Payload. Der Fehler lag im `startedAt`-Feld der Detailantwort und wurde im Plugin behoben.
 
-**Hypothesis**: Tokens need activation time (10-30 seconds) OR require additional activation step in Garmin's backend.
+### Diagnose und Korrektur (2026-11-15, 08:21–08:28 UTC)
 
----
+- Auf Wunsch wurden ausführliche Plugin-Logs ergänzt: jede Summary als JSON, die vom Host an die Detailfunktion übergebene Summary sowie das Import-Item mit Metadaten, Trackpunkt-/GPX-Größen und GPX-Anfang.
+- Der erste Lauf bestätigte die Übergabe von 57 Summaries und GPX-Detailantworten, importierte aber 0 Trails. Die Detailantwort enthielt z. B. `startedAt: "2026-07-20 16:07:41T00:00:00Z"` – ungültiges RFC3339.
+- Ursache: `startTimeGMT` wurde bei einem Leerzeichen-Zeitstempel fälschlich wie ein Datum ohne Uhrzeit behandelt und `T00:00:00Z` angehängt. Der Host erwartet für `startedAt` einen decodierbaren RFC3339-Zeitwert.
+- `mapActivityToTrail` normalisiert `startTimeGMT` jetzt mit `parseActivityStartTime` und formatiert es in UTC als RFC3339; bei nicht parsebarem Zeitwert wird `startedAt` ausgelassen.
+- Erneut gebaut/installiert und einen einzelnen Lauf ausgeführt. Logbeispiel: `startedAt: "2026-10-12T16:09:45Z"`, 3266 Trackpunkte, GPX Base64 265920 Bytes.
+- Ergebnis: Garmin-Status `configured`, `last_error={}`, 57 unterschiedliche Garmin-Aktivitätsreferenzen und 48 Trails. Mehrere Garmin-Referenzen können auf denselben Trail zeigen; der Host kann Aktivitäten zusammenführen. Wanderer-Images wurden nicht verändert. Cron wieder auf täglich 02:00 UTC zurückgesetzt.
+- Strava lieferte weiterhin separat 401 (`invalid` access token); das betrifft Garmin nicht.
 
-## 📋 **Action Items (Priority Order)**
+### A. Lokalen Parser vorbereiten — erledigt
 
-### 🔥 **P0: Critical - Token Activation**
-- [ ] Test with **fresh token** immediately after exchange (no delay)
-- [ ] Verify if tokens need **10-30 second delay** before becoming active
-- [ ] Check if `managed_status` changes from "DEFAULT" to "ACTIVE" over time
-- [ ] Test token exchange from **within Docker container** (network/clock sync issues?)
-- [ ] Verify **Garmin application status** in developer portal is fully activated
+- Der Parser liegt unabhängig vom HTTP-Client unter `internal/garmintrack/`. Er bevorzugt `geoPolylineDTO.polyline` und fällt bei leerer Polyline auf Koordinaten in `activityDetailMetrics` zurück.
+- Synthetische Fixtures liegen in `testdata/garmin_activity_details_polyline.json` und `testdata/garmin_activity_details_metrics_fallback.json`. Sie enthalten keine echten Garmin-Aktivitätsdaten oder Zugangsdaten.
+- Parser-Tests decken Polyline, `valid:false`, Metrics-Fallback, `null`-Koordinaten und ungültiges JSON ab.
+- Lokal gegen die Fixtures testen, ohne Garmin aufzurufen:
+  `docker run --rm -v "$PWD:/workspace" -w /workspace/wanderer-garmin-plugin tinygo/tinygo:0.44.0 go test ./internal/garmintrack`
+- TinyGo-Build wurde mit dem neuen Paket erfolgreich geprüft (`make build`). Das Plugin wurde absichtlich noch nicht installiert; der bestehende Importfehler liegt nach der Plugin-Payload und muss zuerst an der Host-/Importer-Grenze aufgeklärt werden.
 
-### 🔧 **P1: Plugin Code Updates**
-Once token activation works:
-- [ ] Modify `wanderer-garmin-plugin/main.go` to implement two-step auth:
-  1. Exchange saved API key for access token
-  2. Use access token for Garmin API calls
-- [ ] Add error handling for token exchange failures
-- [ ] Add token refresh logic (tokens have ~2 year expiration based on JWT)
-- [ ] Test token caching/reuse for multiple API calls
+### B. Build-Container wiederverwenden
 
-### 🧪 **P2: Testing & Validation**
-- [ ] Create test script to verify token exchange + API call in one flow
-- [ ] Test with activities endpoint: `/activitylist-service/activities/search/activities`
-- [ ] Test with user profile endpoint: `/userprofile-service/userprofile`
-- [ ] Verify Meilisearch indexing of imported activities
-- [ ] Test full import flow end-to-end
+1. Beim nächsten Build prüfen, ob das Image `tinygo/tinygo:0.44.0` lokal vorhanden ist (`docker image inspect`). Docker lädt ein vorhandenes Image nicht bei jedem `docker run` erneut herunter.
+2. Verstehen: `--rm` entfernt den beendeten Container, nicht das Image. Ohne `--rm` bleibt ein gestoppter Container zurück; das spart Container-Neuanlage, aber ist für die Image-Downloads nicht nötig.
+3. Für den einfachen Ablauf `--rm` beibehalten und das TinyGo-Image lokal behalten. Falls Container-Neuanlage tatsächlich stört, einmalig einen benannten Build-Container anlegen und für weitere Builds mit `docker start -ai <name>` wiederverwenden; Arbeitsverzeichnis und Bind-Mount müssen dabei auf `/opt/wanderer-dev/wanderer-garmin-plugin` zeigen.
+4. Keine regelmäßigen `docker pull`-Aufrufe in den Build einbauen. Das Image nur bei Bedarf aktualisieren; danach sicherstellen, dass TinyGo-Version und Build-Ergebnis weiterhin stimmen.
 
-### 📝 **P3: Documentation**
-- [ ] Document Garmin authentication flow in plugin README
-- [ ] Update plugin manifest if any changes needed
-- [ ] Document troubleshooting steps for token activation issues
-- [ ] Add API key validation script
+## Nächster lokaler Schritt
 
----
+1. In der GUI prüfen, ob die importierten Aktivitäten/Trails sichtbar sind.
+2. Bei Bedarf die 57 Garmin-Referenzen mit den 48 Trails abgleichen, insbesondere die durch Auto-Merge zusammengeführten Aktivitäten.
+3. Die ausführlichen Diagnose-Logs nach Bestätigung des Imports reduzieren; sie enthalten viele IDs und GPX-Vorschauen und sind für den normalen Betrieb unnötig laut.
+4. Den separaten Strava-401-Fehler unabhängig davon beheben.
 
-## 🔬 **Troubleshooting Notes**
+## Wiederholung des Garmin-Sync-Diagnoselaufs (nur falls neue API-Daten erforderlich sind)
 
-### Error Messages
-- `401 - Token is not active` = Token exists but not activated by Garmin
-- `401 - invalid_token` = Token format/structure issue
-- `400 - Authentication missing` = No token provided
+1. In `docker-compose.yaml` steht wieder der tägliche Zeitplan `POCKETBASE_CRON_SYNC_SCHEDULE: 0 2 * * *`.
+2. Für einen Diagnose-Lauf den Wert **einmalig** auf einen konkreten zukünftigen Zeitpunkt setzen, z. B. `"M H * * *"` (Minute/Stunde passend zur aktuellen UTC-Zeit), dann aus `/opt/wanderer-dev` `docker compose up -d --no-deps db` ausführen. **Keinen Minutentakt verwenden**: Ein Lauf braucht ungefähr 50 Sekunden; Minutentakt hat Syncs überlappen lassen und Garmin mit `429` ins Rate-Limit gebracht.
+3. Den einzelnen Lauf abschließen lassen und in den Logs nach `track details polyline_points`, `activity import payload`, `skipping plugin item` und `imported plugin trail` suchen.
+4. Danach Cron sofort auf `0 2 * * *` zurückstellen und erneut `docker compose up -d --no-deps db` ausführen.
+5. Datenbank prüfen: `trails` und `trail_external_reference` müssen Garmin-Einträge enthalten. Bei weiterhin 0 Trails anhand der Diagnose feststellen, ob Punkte in der Plugin-Antwort vorhanden sind; dann Host-Importer/Detailantwort weiterverfolgen. Die Ergebnisse sind der Startpunkt für Schritt A oben.
 
-### Working API Key
-```
-GCDC_62a8961e-0f89-448a-8780-8b89c2738095.69942ea9-687e-4c30-bfc9-7e6e7e9dcbee.gCH+ZSgvlGDSwhu+GtcdK4zWNMbXrJwFz5fmITSyxhI.3617965035
-```
+## Relevante Dateien
 
-### Token Exchange Command (WORKS)
-```bash
-curl -X POST 'https://personal.connectapi.garmin.com/personalapitoken-service/personal-api/personal-api-key/token' \
-  -H 'Authorization: ApiKey GCDC_62a8961e-0f89-448a-8780-8b89c2738095.69942ea9-687e-4c30-bfc9-7e6e7e9dcbee.gCH+ZSgvlGDSwhu+GtcdK4zWNMbXrJwFz5fmITSyxhI.3617965035'
-```
+- `garmin.go`, `types.go`, `plugin.json`: Parser, Detail-Trackpunkte, Manifest und ausführliche Handoff-Diagnose.
+- `README.md`: dokumentiertes API-Antwortformat; als nächstes daraus eine bereinigte Fixture erstellen.
+- `garmin-personal-api-python/`: lokaler Clone des offiziellen Clients.
+- `docker-compose.yaml`: aktueller Cron ist täglich um 02:00.
 
-### API Call Command (FAILS with "Token is not active")
-```bash
-curl -H 'Authorization: Bearer {access_token}' \
-  'https://personal.connectapi.garmin.com/activitylist-service/activities/search/activities?start=0&limit=1'
-```
+## Zugangsdaten
 
----
-
-## 📚 **Reference Material**
-
-### Plugin Files
-- `/opt/wanderer-dev/wanderer-garmin-plugin/plugin.json` - Plugin manifest
-- `/opt/wanderer-dev/wanderer-garmin-plugin/main.go` - Plugin code
-- `/opt/wanderer-dev/data/plugins/garmin/plugin.json` - Installed plugin config
-- `/opt/wanderer-dev/data/plugins/garmin/plugin.wasm` - Compiled plugin
-- `/opt/wanderer-dev/data/plugins/garmin/icon.svg` - Plugin icon
-
-### Helper Scripts
-- `/opt/wanderer-dev/wanderer-garmin-plugin/check_plugin_status.py` - Check plugin instance status
-- `/opt/wanderer-dev/wanderer-garmin-plugin/check_and_trigger_import.py` - Trigger import
-- `/opt/wanderer-dev/wanderer-garmin-plugin/trigger_sync.py` - Manual sync trigger
-- `/opt/wanderer-dev/wanderer-garmin-plugin/clear_meilisearch.py` - Clear search index
-- `/opt/wanderer-dev/wanderer-garmin-plugin/SCRIPTS.md` - Script documentation
-
-### Related Issues
-- Meilisearch ports: 7700 (HTTP), 7701 (Admin)
-- PocketBase encryption: Keys are encrypted at rest
-- Container: `wanderer-dev-db-1` (port 8091)
-- Plugin instance: `z3ahsdr1i0pfty9`
-
----
-
-## 🎯 **Success Criteria**
-
-- [ ] Plugin loads without "Setup-Fehler"
-- [ ] API key saves correctly in database
-- [ ] Token exchange succeeds
-- [ ] Access token becomes active
-- [ ] Activities import successfully
-- [ ] Activities appear in Wanderer UI
-- [ ] Meilisearch indexes new activities
-
----
-
-*Last updated: 2026-11-13*
-*Status: Token activation issue identified, awaiting resolution*
+Ein API-Key wurde zuvor in einer Notiz abgelegt und in der Unterhaltung geteilt. Er wurde aus dieser TODO-Datei entfernt. Den betroffenen Key in Garmin Connect widerrufen und einen neuen verwenden. Zugangsdaten nicht in Logs, TODO-Dateien oder Commits speichern.

@@ -177,6 +177,27 @@ If the build fails:
 - Activity Download: `GET /download-service/files/activity/{id}`
 - User Profile: `GET /userprofile-service/userprofile`
 
+### Observed API Response Format
+
+A direct request to the Personal API token endpoint returned HTTP `200` with the bearer token as `text/plain`. The activities search endpoint returned HTTP `200` with a top-level JSON array, including when requesting one item. Relevant fields in an activity object:
+
+| Field | JSON type | Notes |
+|---|---|---|
+| `activityId` | integer | Activity identifier |
+| `activityType` | object | Contains `typeId`, `typeKey`, and `parentTypeId` |
+| `startTimeGMT` | string | UTC start time; this is the field used for date filtering |
+| `startTimeLocal` | string | Local start time |
+| `calories` | number | May be fractional (for example, JSON numeric values are not always integers) |
+| `privacy` | object | Contains `typeId` and `typeKey` |
+| `distance`, `duration`, `elevationGain`, `elevationLoss`, `averageSpeed`, `maxSpeed` | number | Activity metrics |
+| `startLatitude`, `startLongitude`, `endLatitude`, `endLongitude` | number | Coordinates |
+
+The list response contains additional fields. Do not assume `activityType` or `privacy` are strings, or that the activity list is wrapped in an object.
+
+For the tested account, `GET /activity-service/activity/{id}/details` returned a JSON object with `activityDetailMetrics`, `metricDescriptors`, and `geoPolylineDTO`. The Garmin Python client also exposes the activity download endpoint; its response is a ZIP archive containing a `.fit` file for the tested activity, not a GPX file. The importer therefore gets track geometry from the activity details response instead of treating the downloaded ZIP as GPX.
+
+Garmin's [official Python client](https://github.com/garmin/connect-personal-api-python) currently wraps activity summary, workouts, and ZIP download. The details endpoint can be called through its generic `get()` method, but it has no dedicated wrapper.
+
 ### Authentication Flow
 
 ```

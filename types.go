@@ -3,6 +3,9 @@
 package main
 
 import (
+	"encoding/json"
+
+	"github.com/open-wanderer/wanderer/plugins/garmin/internal/garmintrack"
 	"github.com/open-wanderer/wanderer/plugins/sdk"
 )
 
@@ -48,49 +51,94 @@ type garminActivitySearch struct {
 	Activities []garminActivity `json:"activities"`
 }
 
-type garminActivity struct {
-	ActivityID    int64   `json:"activityId"`
-	ActivityName  string  `json:"activityName"`
-	StartTime     string  `json:"startTime"`
-	Duration      float64 `json:"duration"`
-	Distance      float64 `json:"distance"`
-	ElevationGain float64 `json:"elevationGain"`
-	ElevationLoss float64 `json:"elevationLoss"`
-	AverageSpeed  float64 `json:"averageSpeed"`
-	MaxSpeed      float64 `json:"maxSpeed"`
-	Calories      int     `json:"calories"`
-	ActivityType  string  `json:"activityType"`
-	StartLat      float64 `json:"startLatitude"`
-	StartLon      float64 `json:"startLongitude"`
-	EndLat        float64 `json:"endLatitude"`
-	EndLon        float64 `json:"endLongitude"`
-	HasTrack      bool    `json:"hasTrack"`
-	HasPhotos     bool    `json:"hasPhotos"`
-	Privacy       string  `json:"privacy"`
+type garminActivityType struct {
+	TypeKey string `json:"typeKey"`
 }
 
+func (activityType *garminActivityType) UnmarshalJSON(data []byte) error {
+	var key string
+	if err := json.Unmarshal(data, &key); err == nil {
+		activityType.TypeKey = key
+		return nil
+	}
+
+	var value struct {
+		TypeKey string `json:"typeKey"`
+	}
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	activityType.TypeKey = value.TypeKey
+	return nil
+}
+
+type garminPrivacy struct {
+	TypeKey string `json:"typeKey"`
+}
+
+func (privacy *garminPrivacy) UnmarshalJSON(data []byte) error {
+	var key string
+	if err := json.Unmarshal(data, &key); err == nil {
+		privacy.TypeKey = key
+		return nil
+	}
+
+	var value struct {
+		TypeKey string `json:"typeKey"`
+	}
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	privacy.TypeKey = value.TypeKey
+	return nil
+}
+
+type garminActivity struct {
+	ActivityID     int64              `json:"activityId"`
+	ActivityName   string             `json:"activityName"`
+	StartTime      string             `json:"startTimeGMT"`
+	StartTimeLocal string             `json:"startTimeLocal"`
+	Duration       float64            `json:"duration"`
+	Distance       float64            `json:"distance"`
+	ElevationGain  float64            `json:"elevationGain"`
+	ElevationLoss  float64            `json:"elevationLoss"`
+	AverageSpeed   float64            `json:"averageSpeed"`
+	MaxSpeed       float64            `json:"maxSpeed"`
+	Calories       float64            `json:"calories"`
+	ActivityType   garminActivityType `json:"activityType"`
+	StartLat       float64            `json:"startLatitude"`
+	StartLon       float64            `json:"startLongitude"`
+	EndLat         float64            `json:"endLatitude"`
+	EndLon         float64            `json:"endLongitude"`
+	HasTrack       bool               `json:"hasTrack"`
+	HasPhotos      bool               `json:"hasPhotos"`
+	Privacy        garminPrivacy      `json:"privacy"`
+}
+
+type garminActivityTrackDetails = garmintrack.Details
+
 type garminActivityDetail struct {
-	ActivityID    int64         `json:"activityId"`
-	ActivityName  string        `json:"activityName"`
-	Description   string        `json:"description"`
-	StartTime     string        `json:"startTime"`
-	Duration      float64       `json:"duration"`
-	Distance      float64       `json:"distance"`
-	ElevationGain float64       `json:"elevationGain"`
-	ElevationLoss float64       `json:"elevationLoss"`
-	AverageSpeed  float64       `json:"averageSpeed"`
-	MaxSpeed      float64       `json:"maxSpeed"`
-	Calories      int           `json:"calories"`
-	ActivityType  string        `json:"activityType"`
-	StartLat      float64       `json:"startLatitude"`
-	StartLon      float64       `json:"startLongitude"`
-	EndLat        float64       `json:"endLatitude"`
-	EndLon        float64       `json:"endLongitude"`
-	Privacy       string        `json:"privacy"`
-	Difficulty    string        `json:"difficultyRating"`
-	Location      string        `json:"locationName"`
-	Photos        []garminPhoto `json:"photos"`
-	Track         []trackPoint  `json:"trackPoints"`
+	ActivityID    int64              `json:"activityId"`
+	ActivityName  string             `json:"activityName"`
+	Description   string             `json:"description"`
+	StartTime     string             `json:"startTimeGMT"`
+	Duration      float64            `json:"duration"`
+	Distance      float64            `json:"distance"`
+	ElevationGain float64            `json:"elevationGain"`
+	ElevationLoss float64            `json:"elevationLoss"`
+	AverageSpeed  float64            `json:"averageSpeed"`
+	MaxSpeed      float64            `json:"maxSpeed"`
+	Calories      float64            `json:"calories"`
+	ActivityType  garminActivityType `json:"activityType"`
+	StartLat      float64            `json:"startLatitude"`
+	StartLon      float64            `json:"startLongitude"`
+	EndLat        float64            `json:"endLatitude"`
+	EndLon        float64            `json:"endLongitude"`
+	Privacy       garminPrivacy      `json:"privacy"`
+	Difficulty    string             `json:"difficultyRating"`
+	Location      string             `json:"locationName"`
+	Photos        []garminPhoto      `json:"photos"`
+	Track         []trackPoint       `json:"trackPoints"`
 }
 
 type garminPhoto struct {
@@ -101,9 +149,4 @@ type garminPhoto struct {
 	Timestamp string  `json:"timestamp"`
 }
 
-type trackPoint struct {
-	Latitude  float64 `json:"latitude"`
-	Longitude float64 `json:"longitude"`
-	Elevation float64 `json:"elevation"`
-	Timestamp string  `json:"timestamp"`
-}
+type trackPoint = garmintrack.Point

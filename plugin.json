@@ -76,6 +76,7 @@
         "application/json",
         "text/plain",
         "application/gpx+xml",
+        "application/x-zip-compressed",
         "application/xml",
         "text/xml",
         "application/octet-stream",

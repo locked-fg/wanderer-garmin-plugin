@@ -8,10 +8,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/open-wanderer/wanderer/plugins/garmin/internal/garmintrack"
 	"github.com/open-wanderer/wanderer/plugins/sdk"
 )
 
@@ -27,6 +29,14 @@ type garminClient struct {
 	apiKey      string
 	baseURL     string
 }
+
+// The host reuses a WASM session for list and detail calls within one sync.
+// Cache the exchanged token in that session so each imported activity does
+// not repeat token exchange and Garmin's activation wait.
+var cachedAPIKey string
+var cachedAccessToken string
+var cachedActivities map[string]garminActivity
+var trackShapeLogged bool
 
 // Token exchange response
 type tokenExchangeResponse struct {
@@ -46,8 +56,6 @@ func newGarminClient(auth map[string]any) (*garminClient, error) {
 	accessToken := sdk.StringField(auth, "accessToken")
 	apiKey := sdk.StringField(auth, "apiKey")
 
-	logHelper(sdk.LogLevelDebug, fmt.Sprintf("Garmin: Creating client - hasAccessToken: %v, hasApiKey: %v", accessToken != "", apiKey != ""))
-
 	client := &garminClient{
 		accessToken: accessToken,
 		apiKey:      apiKey,
@@ -56,18 +64,23 @@ func newGarminClient(auth map[string]any) (*garminClient, error) {
 
 	// If we have an API key but no access token, exchange it
 	if apiKey != "" && accessToken == "" {
-		logHelper(sdk.LogLevelInfo, "Garmin: Exchanging API key for access token")
-		// Exchange API key for access token
-		token, err := client.exchangeAPIKeyForToken()
-		if err != nil {
-			logHelper(sdk.LogLevelError, fmt.Sprintf("Garmin: Token exchange failed: %v", err))
-			return nil, fmt.Errorf("failed to exchange API key for token: %w", err)
+		if cachedAPIKey == apiKey && cachedAccessToken != "" {
+			client.accessToken = cachedAccessToken
+		} else {
+			logHelper(sdk.LogLevelInfo, "Garmin: Exchanging API key for access token")
+			token, err := client.exchangeAPIKeyForToken()
+			if err != nil {
+				logHelper(sdk.LogLevelError, fmt.Sprintf("Garmin: Token exchange failed: %v", err))
+				return nil, fmt.Errorf("failed to exchange API key for token: %w", err)
+			}
+			client.accessToken = token
+			cachedAPIKey = apiKey
+			cachedAccessToken = token
+			logHelper(sdk.LogLevelInfo, "Garmin: Token received, waiting 15s for activation")
+			// Give token time to activate (Garmin tokens may need 10-30 seconds)
+			time.Sleep(15 * time.Second)
+			logHelper(sdk.LogLevelInfo, "Garmin: Token activation complete")
 		}
-		client.accessToken = token
-		logHelper(sdk.LogLevelInfo, "Garmin: Token received, waiting 15s for activation")
-		// Give token time to activate (Garmin tokens may need 10-30 seconds)
-		time.Sleep(15 * time.Second)
-		logHelper(sdk.LogLevelInfo, "Garmin: Token activation complete")
 	}
 
 	// If we still don't have an access token, fail
@@ -76,7 +89,6 @@ func newGarminClient(auth map[string]any) (*garminClient, error) {
 		return nil, fmt.Errorf("accessToken or apiKey is required")
 	}
 
-	logHelper(sdk.LogLevelDebug, "Garmin: Client created successfully")
 	return client, nil
 }
 
@@ -165,6 +177,7 @@ func (c *garminClient) searchActivities(page int, limit int, after time.Time) ([
 	}
 	if trimmedBody[0] == '[' {
 		if err := json.Unmarshal(trimmedBody, &activities); err != nil {
+			logActivityResponseShape(trimmedBody)
 			return nil, fmt.Errorf("failed to parse activities: %w", err)
 		}
 	} else {
@@ -175,6 +188,58 @@ func (c *garminClient) searchActivities(page int, limit int, after time.Time) ([
 		activities = result.Activities
 	}
 	return activities, nil
+}
+
+// logActivityResponseShape reports only JSON field names and value types.
+// It intentionally omits activity values and identifiers from diagnostics.
+func logActivityResponseShape(body []byte) {
+	var activities []json.RawMessage
+	if err := json.Unmarshal(body, &activities); err != nil {
+		logHelper(sdk.LogLevelInfo, "Garmin: activity response is not a JSON array")
+		return
+	}
+	if len(activities) == 0 {
+		logHelper(sdk.LogLevelInfo, "Garmin: activity response shape is an empty array")
+		return
+	}
+	logHelper(sdk.LogLevelInfo, "Garmin: activity response shape: "+jsonValueShape(activities[0], 0))
+}
+
+func jsonValueShape(raw json.RawMessage, depth int) string {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 {
+		return "empty"
+	}
+	switch trimmed[0] {
+	case '{':
+		if depth >= 1 {
+			return "object"
+		}
+		var object map[string]json.RawMessage
+		if err := json.Unmarshal(trimmed, &object); err != nil {
+			return "object"
+		}
+		keys := make([]string, 0, len(object))
+		for key := range object {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		fields := make([]string, 0, len(keys))
+		for _, key := range keys {
+			fields = append(fields, key+":"+jsonValueShape(object[key], depth+1))
+		}
+		return "object{" + strings.Join(fields, ",") + "}"
+	case '[':
+		return "array"
+	case '"':
+		return "string"
+	case 't', 'f':
+		return "boolean"
+	case 'n':
+		return "null"
+	default:
+		return "number"
+	}
 }
 
 // Get activity details
@@ -198,31 +263,39 @@ func (c *garminClient) getActivity(activityID int64) (*garminActivityDetail, err
 	return &detail, nil
 }
 
+func (c *garminClient) getActivityTrackPoints(activityID int64) ([]trackPoint, error) {
+	path := fmt.Sprintf("/activity-service/activity/%d/details", activityID)
+	query := []sdk.QueryParam{{Name: "maxPolylineSize", Value: "10000"}}
+	response, body, err := c.request(path, query, []string{"application/json"})
+	if err != nil {
+		return nil, err
+	}
+	if response.Status < 200 || response.Status >= 300 {
+		return nil, fmt.Errorf("Garmin activity track details failed (%d)", response.Status)
+	}
+	details, points, err := garmintrack.ParseActivityTrackDetails(body)
+	if err != nil {
+		if !trackShapeLogged {
+			trackShapeLogged = true
+			logActivityTrackShape(body)
+		}
+		return nil, fmt.Errorf("failed to parse Garmin activity track details: %w", err)
+	}
+	if !trackShapeLogged {
+		trackShapeLogged = true
+		descriptorKeys := make([]string, 0, len(details.MetricDescriptors))
+		for _, descriptor := range details.MetricDescriptors {
+			descriptorKeys = append(descriptorKeys, descriptor.Key)
+		}
+		logHelper(sdk.LogLevelInfo, fmt.Sprintf("Garmin: track details polyline_points=%d metric_rows=%d metric_keys=%s", len(details.GeoPolylineDTO.Polyline), len(details.ActivityDetailMetrics), strings.Join(descriptorKeys, ",")))
+	}
+	return points, nil
+}
+
 // Get activity workouts
 func (c *garminClient) getActivityWorkouts(activityID int64) ([]byte, error) {
 	path := fmt.Sprintf("/activity-service/activity/%d/workouts", activityID)
 	response, body, err := c.request(path, nil, []string{"application/json"})
-	if err != nil {
-		return nil, err
-	}
-
-	if response.Status < 200 || response.Status >= 300 {
-		return nil, fmt.Errorf("Garmin API request failed (%d): %s", response.Status, string(body))
-	}
-
-	return body, nil
-}
-
-// Download activity file (ZIP containing GPX)
-func (c *garminClient) downloadActivity(activityID int64) ([]byte, error) {
-	path := fmt.Sprintf("/download-service/files/activity/%d", activityID)
-
-	// Garmin returns ZIP files for activity downloads
-	response, body, err := c.request(path, nil, []string{
-		"application/zip",
-		"application/x-zip-compressed",
-		"application/octet-stream",
-	})
 	if err != nil {
 		return nil, err
 	}
@@ -239,6 +312,10 @@ func (c *garminClient) request(path string, query []sdk.QueryParam, contentTypes
 	accept := "application/json"
 	if len(contentTypes) > 0 {
 		accept = contentTypes[0]
+	}
+	if strings.HasPrefix(path, "/download-service/") {
+		// Garmin's activity download endpoint rejects a specific ZIP Accept value.
+		accept = "*/*"
 	}
 
 	// First attempt
@@ -317,26 +394,34 @@ func syncActivities(client *garminClient, input listInput) (listOutput, error) {
 	}
 
 	items := make([]trailSummary, 0, len(activities))
+	if page == 1 || cachedActivities == nil {
+		cachedActivities = make(map[string]garminActivity)
+	}
+	filteredByDate := 0
+	invalidStartTime := 0
 	for _, activity := range activities {
 		// Filter by after date if not already filtered by API
 		if !after.IsZero() {
-			startTime, parseErr := time.Parse(time.RFC3339, activity.StartTime)
+			startTime, parseErr := parseActivityStartTime(activity.StartTime)
+			if parseErr != nil && activity.StartTimeLocal != "" {
+				startTime, parseErr = parseActivityStartTime(activity.StartTimeLocal)
+			}
 			if parseErr != nil {
-				// Try different date formats
-				startTime, parseErr = time.Parse("2006-01-02T15:04:05.000Z", activity.StartTime)
-				if parseErr != nil {
-					continue
-				}
+				invalidStartTime++
+				continue
 			}
 			if startTime.Before(after) {
+				filteredByDate++
 				continue
 			}
 		}
 
+		externalID := strconv.FormatInt(activity.ActivityID, 10)
+		cachedActivities[externalID] = activity
 		items = append(items, trailSummary{
 			Source: trailImportSource{
 				Provider:   "garmin",
-				ExternalID: strconv.FormatInt(activity.ActivityID, 10),
+				ExternalID: externalID,
 			},
 			Kind: "completed",
 		})
@@ -345,6 +430,8 @@ func syncActivities(client *garminClient, input listInput) (listOutput, error) {
 			break
 		}
 	}
+	logHelper(sdk.LogLevelInfo, fmt.Sprintf("Garmin: activities received=%d eligible=%d filtered_by_date=%d invalid_start_time=%d", len(activities), len(items), filteredByDate, invalidStartTime))
+	logActivitySummaries(items, page, len(activities), len(activities) >= limit)
 
 	nextPage := page + 1
 	hasMore := len(activities) >= limit
@@ -404,61 +491,165 @@ func parseAfterDate(options map[string]any) time.Time {
 	return time.Time{}
 }
 
+func parseActivityStartTime(value string) (time.Time, error) {
+	for _, layout := range []string{
+		time.RFC3339Nano,
+		"2006-01-02T15:04:05.999999999-0700",
+		"2006-01-02T15:04:05-0700",
+		"2006-01-02T15:04:05.999999999",
+		"2006-01-02T15:04:05.000Z",
+		"2006-01-02T15:04:05Z",
+		"2006-01-02T15:04:05.000",
+		"2006-01-02T15:04:05",
+		"2006-01-02 15:04:05.999999999",
+		"2006-01-02 15:04:05",
+	} {
+		if parsed, err := time.Parse(layout, value); err == nil {
+			return parsed, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("unsupported Garmin activity start time format")
+}
+
 // Get activity detail and map to trail import
 func getActivityDetail(client *garminClient, input detailInput, kind string) (trailImport, error) {
+	logHelper(sdk.LogLevelInfo, fmt.Sprintf("Garmin: detail request received kind=%q provider=%q external_id=%q summary_kind=%q", kind, input.Summary.Source.Provider, input.Summary.Source.ExternalID, input.Summary.Kind))
 	activityID, err := strconv.ParseInt(input.Summary.Source.ExternalID, 10, 64)
 	if err != nil {
 		return trailImport{}, fmt.Errorf("invalid activity ID: %w", err)
 	}
 
-	detail, err := client.getActivity(activityID)
-	if err != nil {
-		return trailImport{}, fmt.Errorf("failed to get activity detail: %w", err)
+	externalID := strconv.FormatInt(activityID, 10)
+	activity, ok := cachedActivities[externalID]
+	var detail *garminActivityDetail
+	if ok {
+		startTime := activity.StartTime
+		if startTime == "" {
+			startTime = activity.StartTimeLocal
+		}
+		detail = &garminActivityDetail{
+			ActivityID:    activity.ActivityID,
+			ActivityName:  activity.ActivityName,
+			StartTime:     startTime,
+			Duration:      activity.Duration,
+			Distance:      activity.Distance,
+			ElevationGain: activity.ElevationGain,
+			ElevationLoss: activity.ElevationLoss,
+			AverageSpeed:  activity.AverageSpeed,
+			MaxSpeed:      activity.MaxSpeed,
+			Calories:      activity.Calories,
+			ActivityType:  activity.ActivityType,
+			StartLat:      activity.StartLat,
+			StartLon:      activity.StartLon,
+			EndLat:        activity.EndLat,
+			EndLon:        activity.EndLon,
+			Privacy:       activity.Privacy,
+		}
+	} else {
+		var err error
+		detail, err = client.getActivity(activityID)
+		if err != nil {
+			return trailImport{}, fmt.Errorf("failed to get activity detail: %w", err)
+		}
 	}
-
-	// Download the activity file (ZIP containing GPX)
-	zipData, err := client.downloadActivity(activityID)
+	points, err := client.getActivityTrackPoints(activityID)
 	if err != nil {
-		// If download fails, try to extract GPX from track points
-		sdk.LogWarn(fmt.Sprintf("Failed to download activity file, using track points: %v", err))
-		return mapActivityToTrail(detail, nil)
+		return trailImport{}, fmt.Errorf("failed to get activity track: %w", err)
 	}
-
-	// Extract GPX from ZIP
-	gpxData, err := extractGPXFromZip(zipData)
-	if err != nil {
-		sdk.LogWarn(fmt.Sprintf("Failed to extract GPX from ZIP: %v", err))
-		return mapActivityToTrail(detail, nil)
+	if len(points) == 0 {
+		logHelper(sdk.LogLevelWarn, "Garmin: activity track details contained no usable GPS points")
+		return trailImport{}, fmt.Errorf("Garmin activity has no GPS track points")
 	}
-
-	return mapActivityToTrail(detail, gpxData)
+	detail.Track = points
+	item, err := mapActivityToTrail(detail, nil)
+	if err == nil {
+		logActivityImportItem(item, points)
+	}
+	return item, err
 }
 
-// Extract GPX from ZIP data
-func extractGPXFromZip(zipData []byte) ([]byte, error) {
-	// For now, we'll assume the ZIP contains a GPX file
-	// In a real implementation, we would unzip and find the GPX file
-	// This is a simplified version
+func logActivitySummaries(items []trailSummary, page, received int, hasMore bool) {
+	logHelper(sdk.LogLevelInfo, fmt.Sprintf("Garmin: list capability output page=%d received=%d returned_items=%d has_more=%t", page, received, len(items), hasMore))
+	for index, item := range items {
+		encoded, err := json.Marshal(item)
+		if err != nil {
+			logHelper(sdk.LogLevelWarn, fmt.Sprintf("Garmin: unable to encode summary %d for diagnostics: %v", index, err))
+			continue
+		}
+		logHelper(sdk.LogLevelInfo, fmt.Sprintf("Garmin: list capability summary index=%d payload=%s", index, encoded))
+	}
+}
 
-	// Try to find GPX in the ZIP by looking for the file signature
-	// This is a placeholder - actual implementation would use a ZIP reader
+func logActivityImportItem(item trailImport, points []trackPoint) {
+	gpxBytes, decodeErr := base64.StdEncoding.DecodeString(item.Track.ContentBase64)
+	gpxPreview := ""
+	if decodeErr == nil {
+		previewBytes := gpxBytes
+		if len(previewBytes) > 1200 {
+			previewBytes = previewBytes[:1200]
+		}
+		gpxPreview = string(previewBytes)
+	}
+	diagnostic := struct {
+		Source            trailImportSource `json:"source"`
+		Kind              string            `json:"kind"`
+		Name              string            `json:"name"`
+		Description       string            `json:"description"`
+		StartedAt         string            `json:"startedAt"`
+		ActivityType      string            `json:"activityType"`
+		Privacy           *string           `json:"privacy"`
+		Difficulty        string            `json:"difficulty"`
+		Metadata          map[string]any    `json:"metadata"`
+		WaypointCount     int               `json:"waypointCount"`
+		PhotoCount        int               `json:"photoCount"`
+		TrackFormat       string            `json:"trackFormat"`
+		TrackPointCount   int               `json:"trackPointCount"`
+		TrackBase64Bytes  int               `json:"trackBase64Bytes"`
+		DecodedTrackBytes int               `json:"decodedTrackBytes"`
+		TrackDecodeError  string            `json:"trackDecodeError,omitempty"`
+		TrackGPXPreview   string            `json:"trackGpxPreview"`
+	}{
+		Source: item.Source, Kind: item.Kind, Name: item.Name, Description: item.Description,
+		StartedAt: item.StartedAt, ActivityType: item.ActivityType, Privacy: item.Privacy,
+		Difficulty: item.Difficulty, Metadata: item.Metadata, WaypointCount: len(item.Waypoints),
+		PhotoCount: len(item.Photos), TrackFormat: item.Track.Format, TrackPointCount: len(points),
+		TrackBase64Bytes: len(item.Track.ContentBase64), DecodedTrackBytes: len(gpxBytes),
+		TrackGPXPreview: gpxPreview,
+	}
+	if decodeErr != nil {
+		diagnostic.TrackDecodeError = decodeErr.Error()
+	}
+	encoded, err := json.Marshal(diagnostic)
+	if err != nil {
+		logHelper(sdk.LogLevelError, fmt.Sprintf("Garmin: unable to encode activity import diagnostics: %v", err))
+		return
+	}
+	logHelper(sdk.LogLevelInfo, fmt.Sprintf("Garmin: detail capability output payload=%s", encoded))
+}
 
-	// For Garmin activities, the ZIP typically contains:
-	// - activity.gpx (the main GPX file)
-	// - other metadata files
-
-	// Since we can't easily parse ZIP in TinyGo without additional libraries,
-	// we'll return the raw ZIP data and let the host handle it
-	// or we'll need to implement a simple ZIP parser
-
-	// For now, return the raw data
-	// The host should be able to handle ZIP files
-	return zipData, nil
+func logActivityTrackShape(body []byte) {
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal(body, &top); err != nil {
+		logHelper(sdk.LogLevelWarn, "Garmin: track details response was not a JSON object")
+		return
+	}
+	var geo map[string]json.RawMessage
+	if err := json.Unmarshal(top["geoPolylineDTO"], &geo); err != nil {
+		logHelper(sdk.LogLevelWarn, "Garmin: track details response had no readable geoPolylineDTO")
+		return
+	}
+	var polyline []json.RawMessage
+	_ = json.Unmarshal(geo["polyline"], &polyline)
+	firstPointShape := "empty"
+	if len(polyline) > 0 {
+		firstPointShape = jsonValueShape(polyline[0], 0)
+	}
+	logHelper(sdk.LogLevelInfo, "Garmin: track details field shape: "+jsonValueShape(top["geoPolylineDTO"], -1)+"; first polyline point: "+firstPointShape)
 }
 
 // Map Garmin activity to trail import
 func mapActivityToTrail(activity *garminActivityDetail, gpxData []byte) (trailImport, error) {
-	privacy := mapPrivacy(activity.Privacy)
+	privacy := mapPrivacy(activity.Privacy.TypeKey)
 	difficulty := mapDifficulty(activity.Difficulty)
 
 	// Build track from GPX or track points
@@ -478,7 +669,7 @@ func mapActivityToTrail(activity *garminActivityDetail, gpxData []byte) (trailIm
 	}
 
 	// Map activity type
-	activityType := mapActivityType(activity.ActivityType)
+	activityType := mapActivityType(activity.ActivityType.TypeKey)
 
 	// Build metadata
 	metadata := map[string]any{
@@ -489,16 +680,18 @@ func mapActivityToTrail(activity *garminActivityDetail, gpxData []byte) (trailIm
 		"calories":         activity.Calories,
 		"averageSpeed":     activity.AverageSpeed,
 		"maxSpeed":         activity.MaxSpeed,
-		"providerCategory": activity.ActivityType,
+		"providerCategory": activity.ActivityType.TypeKey,
 	}
 
-	// Handle start time
-	startedAt := activity.StartTime
-	if strings.Contains(startedAt, "Z") {
-		// Already in ISO format with Z
-	} else if !strings.Contains(startedAt, "T") {
-		// Might be date only
-		startedAt = startedAt + "T00:00:00Z"
+	// Garmin's startTimeGMT is often formatted as "2006-01-02 15:04:05".
+	// Normalize it to RFC3339 because the host decodes startedAt as time.Time.
+	startedAt := ""
+	if activity.StartTime != "" {
+		if parsed, err := parseActivityStartTime(activity.StartTime); err == nil {
+			startedAt = parsed.UTC().Format(time.RFC3339)
+		} else {
+			logHelper(sdk.LogLevelWarn, fmt.Sprintf("Garmin: unable to parse startTimeGMT %q; omitting startedAt", activity.StartTime))
+		}
 	}
 
 	return trailImport{

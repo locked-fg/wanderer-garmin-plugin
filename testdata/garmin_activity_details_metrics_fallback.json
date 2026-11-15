@@ -1,0 +1,13 @@
+{
+  "activityDetailMetrics": [
+    {"metrics": [46.0001, 7.0001, 1200.5]},
+    {"metrics": [46.0002, 7.0002, 1201.0]},
+    {"metrics": [null, 7.0003, 1202.0]}
+  ],
+  "metricDescriptors": [
+    {"metricsIndex": 0, "key": "directLatitude"},
+    {"metricsIndex": 1, "key": "directLongitude"},
+    {"metricsIndex": 2, "key": "directElevation"}
+  ],
+  "geoPolylineDTO": {"polyline": []}
+}

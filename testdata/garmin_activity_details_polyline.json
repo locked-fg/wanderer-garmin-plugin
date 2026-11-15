@@ -1,0 +1,18 @@
+{
+  "activityDetailMetrics": [
+    {"metrics": [46.0001, 7.0001, 1200.5]},
+    {"metrics": [46.0002, 7.0002, 1201.0]}
+  ],
+  "metricDescriptors": [
+    {"metricsIndex": 0, "key": "directLatitude"},
+    {"metricsIndex": 1, "key": "directLongitude"},
+    {"metricsIndex": 2, "key": "directElevation"}
+  ],
+  "geoPolylineDTO": {
+    "polyline": [
+      {"lat": 46.0001, "lon": 7.0001, "altitude": 1200.5, "valid": true},
+      {"lat": 46.00015, "lon": 7.00015, "altitude": 1200.8, "valid": false},
+      {"lat": 46.0002, "lon": 7.0002, "altitude": 1201.0}
+    ]
+  }
+}
