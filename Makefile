@@ -3,8 +3,8 @@
 
 PLUGIN_ID := garmin
 PLUGIN_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
-DIST_DIR := $(PLUGIN_DIR)/dist/$(PLUGIN_ID)
-WANDERER_DATA_DIR ?= $(abspath $(PLUGIN_DIR)/../data)
+DIST_DIR := dist/$(PLUGIN_ID)
+WANDERER_DATA_DIR ?= ../data
 LOCAL_PLUGIN_DIR := $(WANDERER_DATA_DIR)/plugins/$(PLUGIN_ID)
 
 # TinyGo settings
@@ -25,37 +25,32 @@ build: plugin.wasm
 
 plugin.wasm: main.go garmin.go types.go internal/garmintrack/parser.go
 	@echo "Building Garmin plugin..."
-	@mkdir -p $(DIST_DIR)
-	cd $(PLUGIN_DIR) && $(TINYGO) build $(TINYGO_FLAGS) -target $(TINYGO_TARGET) -o $(DIST_DIR)/plugin.wasm .
+	cd $(PLUGIN_DIR) && mkdir -p $(DIST_DIR) && $(TINYGO) build $(TINYGO_FLAGS) -target $(TINYGO_TARGET) -o $(DIST_DIR)/plugin.wasm .
 	@echo "Built: $(DIST_DIR)/plugin.wasm"
 
 # Install the plugin locally
 install: build
 	@echo "Installing Garmin plugin..."
-	@mkdir -p $(DIST_DIR)
-	cp $(PLUGIN_DIR)/plugin.json $(DIST_DIR)/
-	cp $(PLUGIN_DIR)/assets/icon.svg $(DIST_DIR)/icon.svg
+	cd $(PLUGIN_DIR) && mkdir -p $(DIST_DIR)
+	cd $(PLUGIN_DIR) && cp plugin.json $(DIST_DIR)/
+	cd $(PLUGIN_DIR) && cp assets/icon.svg $(DIST_DIR)/icon.svg
 	@echo "Plugin installed to: $(DIST_DIR)"
 
 # Clean build artifacts
 clean:
-	rm -rf $(DIST_DIR)
-	cd $(PLUGIN_DIR) && rm -f plugin.wasm
+	cd $(PLUGIN_DIR) && rm -rf $(DIST_DIR) && rm -f plugin.wasm
 
 # Package the plugin for distribution
 package: build
 	@echo "Packaging Garmin plugin..."
-	@mkdir -p $(DIST_DIR)
-	cp $(PLUGIN_DIR)/plugin.json $(DIST_DIR)/
-	cp $(PLUGIN_DIR)/assets/icon.svg $(DIST_DIR)/icon.svg
-	cd $(DIST_DIR) && tar czf ../../wanderer-plugin-$(PLUGIN_ID).tar.gz $(PLUGIN_FILES)
+	cd $(PLUGIN_DIR) && mkdir -p $(DIST_DIR) && cp plugin.json $(DIST_DIR)/ && cp assets/icon.svg $(DIST_DIR)/icon.svg
+	cd $(PLUGIN_DIR)/$(DIST_DIR) && tar czf ../../wanderer-plugin-$(PLUGIN_ID).tar.gz $(PLUGIN_FILES)
 	@echo "Package created: ../../wanderer-plugin-$(PLUGIN_ID).tar.gz"
 
 # Install to local wanderer data directory
 install-local: install
 	@echo "Installing to local wanderer..."
-	@mkdir -p $(LOCAL_PLUGIN_DIR)
-	cp $(DIST_DIR)/plugin.json $(DIST_DIR)/plugin.wasm $(DIST_DIR)/icon.svg $(LOCAL_PLUGIN_DIR)/
+	cd $(PLUGIN_DIR) && mkdir -p "$(LOCAL_PLUGIN_DIR)" && cp $(DIST_DIR)/plugin.json $(DIST_DIR)/plugin.wasm $(DIST_DIR)/icon.svg "$(LOCAL_PLUGIN_DIR)/"
 	@echo "Plugin installed to: $(LOCAL_PLUGIN_DIR)"
 
 # Build all plugins
