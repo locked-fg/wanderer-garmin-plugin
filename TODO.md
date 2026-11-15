@@ -17,15 +17,13 @@ Das Plugin baut und installiert erfolgreich. Die Garmin-Activities werden import
 - Parser an die Listenantwort angepasst (Array, Objekttypen, Dezimalwerte und Garmin-Zeitformate).
 - Sessionweiten Token-Cache ergänzt, damit der API-Key nicht für jedes Detail neu getauscht wird.
 - Import auf `geoPolylineDTO` und als Rückfall auf `activityDetailMetrics` umgestellt. Garmin lieferte bei einem geprüften Detail `3266` Polyline-Punkte und `249` Messwertzeilen.
-- Eine sichere Diagnose ergänzt, die nur Struktur/Zählwerte protokolliert, keine Aktivitätenwerte oder Zugangsdaten:
-  - Track-Punktanzahl und Messwert-Feldnamen.
-  - Anzahl der Trackpunkte und GPX-Größe in der erzeugten Importantwort.
+- Ausführliche Handoff-Diagnose ergänzt: Summaries werden einzeln als JSON protokolliert; Detail-Logs enthalten Summary-Identität, Import-Metadaten, Trackpunkt-/GPX-Größen und einen GPX-Anfang. Zugangsdaten werden nicht protokolliert.
 - TinyGo-Build (`0.44.0`) war erfolgreich; das Plugin wurde lokal installiert.
-- Ein einzelner Sync-Lauf fand 50 + 7 Aktivitäten und endete ohne gespeicherten Fehler, aber die Datenbank zeigte weiterhin 0 Trails und 0 Garmin-Referenzen. Deshalb ist der Import noch nicht verifiziert.
+- Ein korrigierter Sync-Lauf verifizierte den Import: 57 Garmin-Aktivitätsreferenzen zeigen auf 48 Trails; Plugin-Status `configured`, `last_error={}`.
 
-## Nächste Schritte
+## Verlauf und Diagnose
 
-### Letzter lokaler Diagnose-Lauf (2026-11-15)
+### Früherer lokaler Diagnose-Lauf (2026-11-15, 07:40 UTC)
 
 - Einmaliger Sync um 07:40 UTC; Cron danach wieder auf täglich 02:00 UTC gesetzt und DB-Service mit der normalen Konfiguration neu gestartet.
 - Garmin-Auth und API-Aufruf erfolgreich; es kamen 50 und danach 7 Aktivitäten, alle eligible.
@@ -53,7 +51,7 @@ Das Plugin baut und installiert erfolgreich. Die Garmin-Activities werden import
 - Parser-Tests decken Polyline, `valid:false`, Metrics-Fallback, `null`-Koordinaten und ungültiges JSON ab.
 - Lokal gegen die Fixtures testen, ohne Garmin aufzurufen:
   `docker run --rm -v "$PWD:/workspace" -w /workspace/wanderer-garmin-plugin tinygo/tinygo:0.44.0 go test ./internal/garmintrack`
-- TinyGo-Build wurde mit dem neuen Paket erfolgreich geprüft (`make build`). Das Plugin wurde absichtlich noch nicht installiert; der bestehende Importfehler liegt nach der Plugin-Payload und muss zuerst an der Host-/Importer-Grenze aufgeklärt werden.
+- TinyGo-Build und Installation mit dem neuen Paket wurden erfolgreich geprüft (`make clean install-local`).
 
 ### B. Build-Container wiederverwenden
 
@@ -62,25 +60,25 @@ Das Plugin baut und installiert erfolgreich. Die Garmin-Activities werden import
 3. Für den einfachen Ablauf `--rm` beibehalten und das TinyGo-Image lokal behalten. Falls Container-Neuanlage tatsächlich stört, einmalig einen benannten Build-Container anlegen und für weitere Builds mit `docker start -ai <name>` wiederverwenden; Arbeitsverzeichnis und Bind-Mount müssen dabei auf `/opt/wanderer-dev/wanderer-garmin-plugin` zeigen.
 4. Keine regelmäßigen `docker pull`-Aufrufe in den Build einbauen. Das Image nur bei Bedarf aktualisieren; danach sicherstellen, dass TinyGo-Version und Build-Ergebnis weiterhin stimmen.
 
-## Nächster lokaler Schritt
+## Nächste Schritte
 
 1. In der GUI prüfen, ob die importierten Aktivitäten/Trails sichtbar sind.
 2. Bei Bedarf die 57 Garmin-Referenzen mit den 48 Trails abgleichen, insbesondere die durch Auto-Merge zusammengeführten Aktivitäten.
-3. Die ausführlichen Diagnose-Logs nach Bestätigung des Imports reduzieren; sie enthalten viele IDs und GPX-Vorschauen und sind für den normalen Betrieb unnötig laut.
+3. Die ausführlichen Diagnose-Logs nach Bestätigung in der GUI reduzieren; sie enthalten pro Aktivität IDs, Metadaten und eine GPX-Vorschau.
 4. Den separaten Strava-401-Fehler unabhängig davon beheben.
 
 ## Wiederholung des Garmin-Sync-Diagnoselaufs (nur falls neue API-Daten erforderlich sind)
 
 1. In `docker-compose.yaml` steht wieder der tägliche Zeitplan `POCKETBASE_CRON_SYNC_SCHEDULE: 0 2 * * *`.
 2. Für einen Diagnose-Lauf den Wert **einmalig** auf einen konkreten zukünftigen Zeitpunkt setzen, z. B. `"M H * * *"` (Minute/Stunde passend zur aktuellen UTC-Zeit), dann aus `/opt/wanderer-dev` `docker compose up -d --no-deps db` ausführen. **Keinen Minutentakt verwenden**: Ein Lauf braucht ungefähr 50 Sekunden; Minutentakt hat Syncs überlappen lassen und Garmin mit `429` ins Rate-Limit gebracht.
-3. Den einzelnen Lauf abschließen lassen und in den Logs nach `track details polyline_points`, `activity import payload`, `skipping plugin item` und `imported plugin trail` suchen.
+3. Den einzelnen Lauf abschließen lassen und in den Logs nach `Garmin: list capability output`, `Garmin: detail request received`, `Garmin: detail capability output payload` sowie Host-Importfehlern suchen.
 4. Danach Cron sofort auf `0 2 * * *` zurückstellen und erneut `docker compose up -d --no-deps db` ausführen.
-5. Datenbank prüfen: `trails` und `trail_external_reference` müssen Garmin-Einträge enthalten. Bei weiterhin 0 Trails anhand der Diagnose feststellen, ob Punkte in der Plugin-Antwort vorhanden sind; dann Host-Importer/Detailantwort weiterverfolgen. Die Ergebnisse sind der Startpunkt für Schritt A oben.
+5. Datenbank prüfen: `trails` und `trail_external_reference` müssen Garmin-Einträge enthalten. Bei einem unerwarteten Ergebnis zuerst Summary, `startedAt` und Import-Payload in den Plugin-Logs prüfen; ein Host-Image-Neubau ist dafür nicht erforderlich.
 
 ## Relevante Dateien
 
 - `garmin.go`, `types.go`, `plugin.json`: Parser, Detail-Trackpunkte, Manifest und ausführliche Handoff-Diagnose.
-- `README.md`: dokumentiertes API-Antwortformat; als nächstes daraus eine bereinigte Fixture erstellen.
+- `README.md`: dokumentiertes API-Antwortformat und Zeitformat-Hinweis.
 - `garmin-personal-api-python/`: lokaler Clone des offiziellen Clients.
 - `docker-compose.yaml`: aktueller Cron ist täglich um 02:00.
 

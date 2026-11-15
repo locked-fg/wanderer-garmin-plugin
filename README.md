@@ -194,6 +194,8 @@ A direct request to the Personal API token endpoint returned HTTP `200` with the
 
 The list response contains additional fields. Do not assume `activityType` or `privacy` are strings, or that the activity list is wrapped in an object.
 
+`startTimeGMT` is a string and may arrive as `YYYY-MM-DD HH:MM:SS` (for example, `2026-07-20 16:07:41`), which is not RFC3339. The plugin parses this GMT value and emits `startedAt` as RFC3339 UTC for Wanderer's host, such as `2026-10-12T16:09:45Z`. Appending `T00:00:00Z` to this timestamp makes it invalid and causes the host to reject the detail response.
+
 For the tested account, `GET /activity-service/activity/{id}/details` returned a JSON object with `activityDetailMetrics`, `metricDescriptors`, and `geoPolylineDTO`. The Garmin Python client also exposes the activity download endpoint; its response is a ZIP archive containing a `.fit` file for the tested activity, not a GPX file. The importer therefore gets track geometry from the activity details response instead of treating the downloaded ZIP as GPX.
 
 Garmin's [official Python client](https://github.com/garmin/connect-personal-api-python) currently wraps activity summary, workouts, and ZIP download. The details endpoint can be called through its generic `get()` method, but it has no dedicated wrapper.
