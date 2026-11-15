@@ -570,61 +570,15 @@ func getActivityDetail(client *garminClient, input detailInput, kind string) (tr
 
 func logActivitySummaries(items []trailSummary, page, received int, hasMore bool) {
 	logHelper(sdk.LogLevelInfo, fmt.Sprintf("Garmin: list capability output page=%d received=%d returned_items=%d has_more=%t", page, received, len(items), hasMore))
-	for index, item := range items {
-		encoded, err := json.Marshal(item)
-		if err != nil {
-			logHelper(sdk.LogLevelWarn, fmt.Sprintf("Garmin: unable to encode summary %d for diagnostics: %v", index, err))
-			continue
-		}
-		logHelper(sdk.LogLevelInfo, fmt.Sprintf("Garmin: list capability summary index=%d payload=%s", index, encoded))
-	}
 }
 
 func logActivityImportItem(item trailImport, points []trackPoint) {
 	gpxBytes, decodeErr := base64.StdEncoding.DecodeString(item.Track.ContentBase64)
-	gpxPreview := ""
-	if decodeErr == nil {
-		previewBytes := gpxBytes
-		if len(previewBytes) > 1200 {
-			previewBytes = previewBytes[:1200]
-		}
-		gpxPreview = string(previewBytes)
-	}
-	diagnostic := struct {
-		Source            trailImportSource `json:"source"`
-		Kind              string            `json:"kind"`
-		Name              string            `json:"name"`
-		Description       string            `json:"description"`
-		StartedAt         string            `json:"startedAt"`
-		ActivityType      string            `json:"activityType"`
-		Privacy           *string           `json:"privacy"`
-		Difficulty        string            `json:"difficulty"`
-		Metadata          map[string]any    `json:"metadata"`
-		WaypointCount     int               `json:"waypointCount"`
-		PhotoCount        int               `json:"photoCount"`
-		TrackFormat       string            `json:"trackFormat"`
-		TrackPointCount   int               `json:"trackPointCount"`
-		TrackBase64Bytes  int               `json:"trackBase64Bytes"`
-		DecodedTrackBytes int               `json:"decodedTrackBytes"`
-		TrackDecodeError  string            `json:"trackDecodeError,omitempty"`
-		TrackGPXPreview   string            `json:"trackGpxPreview"`
-	}{
-		Source: item.Source, Kind: item.Kind, Name: item.Name, Description: item.Description,
-		StartedAt: item.StartedAt, ActivityType: item.ActivityType, Privacy: item.Privacy,
-		Difficulty: item.Difficulty, Metadata: item.Metadata, WaypointCount: len(item.Waypoints),
-		PhotoCount: len(item.Photos), TrackFormat: item.Track.Format, TrackPointCount: len(points),
-		TrackBase64Bytes: len(item.Track.ContentBase64), DecodedTrackBytes: len(gpxBytes),
-		TrackGPXPreview: gpxPreview,
-	}
 	if decodeErr != nil {
-		diagnostic.TrackDecodeError = decodeErr.Error()
-	}
-	encoded, err := json.Marshal(diagnostic)
-	if err != nil {
-		logHelper(sdk.LogLevelError, fmt.Sprintf("Garmin: unable to encode activity import diagnostics: %v", err))
+		logHelper(sdk.LogLevelWarn, fmt.Sprintf("Garmin: unable to measure generated GPX activity_id=%q started_at=%q points=%d: %v", item.Source.ExternalID, item.StartedAt, len(points), decodeErr))
 		return
 	}
-	logHelper(sdk.LogLevelInfo, fmt.Sprintf("Garmin: detail capability output payload=%s", encoded))
+	logHelper(sdk.LogLevelInfo, fmt.Sprintf("Garmin: activity ready for import id=%q started_at=%q points=%d gpx_bytes=%d gpx_base64_bytes=%d", item.Source.ExternalID, item.StartedAt, len(points), len(gpxBytes), len(item.Track.ContentBase64)))
 }
 
 func logActivityTrackShape(body []byte) {

@@ -20,6 +20,7 @@ Das Plugin baut und installiert erfolgreich. Die Garmin-Activities werden import
 - Ausführliche Handoff-Diagnose ergänzt: Summaries werden einzeln als JSON protokolliert; Detail-Logs enthalten Summary-Identität, Import-Metadaten, Trackpunkt-/GPX-Größen und einen GPX-Anfang. Zugangsdaten werden nicht protokolliert.
 - TinyGo-Build (`0.44.0`) war erfolgreich; das Plugin wurde lokal installiert.
 - Ein korrigierter Sync-Lauf verifizierte den Import: 57 Garmin-Aktivitätsreferenzen zeigen auf 48 Trails; Plugin-Status `configured`, `last_error={}`.
+- Die zuvor ausführlichen Summary- und Import-Payload-Logs wurden reduziert. Ein erfolgreicher Aktivitätsimport protokolliert jetzt nur ID, normalisierten Startzeitpunkt, Trackpunktzahl und GPX-Größe; Seitenstatistiken und Fehlerdiagnosen bleiben erhalten. Summary-Inhalte, Metadaten und GPX-Vorschau werden nicht mehr im normalen Info-Log ausgegeben.
 
 ## Verlauf und Diagnose
 
@@ -62,7 +63,7 @@ Das Plugin baut und installiert erfolgreich. Die Garmin-Activities werden import
 ## Nächste Schritte
 
 1. Import ist in der GUI bestätigt; der Abgleich 57 Referenzen zu 48 Trails ist erledigt.
-2. Als nächsten Schritt Diagnose-Logs so reduzieren, dass Summary-ID, normalisierter Startzeitpunkt, Trackpunktzahl und GPX-Größe bleiben; GPX-Vorschau nur bei Bedarf ausgeben.
+2. Erledigt: Diagnose-Logs reduziert und Plugin neu bauen/installieren. Bei künftigen Problemen zuerst die kompakte Aktivitätszeile und Fehlerlogs prüfen; eine GPX-Vorschau bei Bedarf gezielt temporär ergänzen.
 3. Falls jede Garmin-Aktivität als eigener Trail gewünscht ist, `merge.enabled` für die Garmin-Instanz deaktivieren. Aktuell bleibt Auto-Merge aktiv und führt ähnliche Aktivitäten zusammen.
 
 ## Wiederholung des Garmin-Sync-Diagnoselaufs (nur falls neue API-Daten erforderlich sind)
