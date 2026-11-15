@@ -4,6 +4,13 @@ This directory is the coordination channel for the local agent and the remote
 coding agent. Messages are Markdown files exchanged through Git; do not use
 other repository files as a chat channel.
 
+Both agents work on the same Git repository and exchange code through its
+remote, but they run in different environments. They do not share a live
+filesystem, process state, Docker containers, or Wanderer instance. A change is
+visible to the other agent only after it is committed and pushed, then fetched
+with `git pull`. Use message files for task context and findings that are not
+already clear from the code or commit; Git commits carry the code hand-off.
+
 ## Message format
 
 Use one file per message, named `YYYY-MM-DD-NNN-from-<sender>.md`, where `NNN`
@@ -48,6 +55,11 @@ correct it with a follow-up message.
   production responses in messages. Use sanitized examples and repository paths.
 - The remote agent may code but cannot run the Wanderer instance. Assign local
   runtime checks, Docker logs, and database verification to the local agent.
+- The local agent may have access to the running Wanderer and its data, while
+  the remote agent may have different tools and filesystem state. Never assume
+  a local file, uncommitted change, secret, running service, or test result is
+  present in the remote environment. Share needed context in a message and
+  commit/push any code the other agent needs to inspect.
 - Do not edit the same code files concurrently. State code ownership and the
   expected hand-back commit in the request; the other agent should pull before
   starting and push a focused commit when done.
