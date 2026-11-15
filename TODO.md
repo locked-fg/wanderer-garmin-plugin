@@ -21,6 +21,8 @@ Das Plugin baut und installiert erfolgreich. Die Garmin-Activities werden import
 - TinyGo-Build (`0.44.0`) war erfolgreich; das Plugin wurde lokal installiert.
 - Ein korrigierter Sync-Lauf verifizierte den Import: 57 Garmin-Aktivitätsreferenzen zeigen auf 48 Trails; Plugin-Status `configured`, `last_error={}`.
 - Die zuvor ausführlichen Summary- und Import-Payload-Logs wurden reduziert. Ein erfolgreicher Aktivitätsimport protokolliert jetzt nur ID, normalisierten Startzeitpunkt, Trackpunktzahl und GPX-Größe; Seitenstatistiken und Fehlerdiagnosen bleiben erhalten. Summary-Inhalte, Metadaten und GPX-Vorschau werden nicht mehr im normalen Info-Log ausgegeben.
+- Die README erklärt jetzt auch den Vollimport: `after` bestimmt das früheste Aktivitätsdatum; Garmin-Aktivitäten werden in Seiten zu 50 geladen, bis eine unvollständige Seite zurückkommt.
+- Auto-Merge bleibt für die Garmin-Instanz standardmäßig aktiviert. Mehrere ähnliche Garmin-Aktivitäten dürfen zu einem Wanderer-Trail zusammengeführt werden; das Verhältnis 57 Referenzen zu 48 Trails ist damit erwartetes Verhalten.
 
 ## Verlauf und Diagnose
 
@@ -53,18 +55,18 @@ Das Plugin baut und installiert erfolgreich. Die Garmin-Activities werden import
   `docker run --rm -v "$PWD:/workspace" -w /workspace/wanderer-garmin-plugin tinygo/tinygo:0.44.0 go test ./internal/garmintrack`
 - TinyGo-Build und Installation mit dem neuen Paket wurden erfolgreich geprüft (`make clean install-local`).
 
-### B. Build-Container wiederverwenden
+### B. Build-Container wiederverwenden — erledigt
 
-1. Beim nächsten Build prüfen, ob das Image `tinygo/tinygo:0.44.0` lokal vorhanden ist (`docker image inspect`). Docker lädt ein vorhandenes Image nicht bei jedem `docker run` erneut herunter.
-2. Verstehen: `--rm` entfernt den beendeten Container, nicht das Image. Ohne `--rm` bleibt ein gestoppter Container zurück; das spart Container-Neuanlage, aber ist für die Image-Downloads nicht nötig.
-3. Für den einfachen Ablauf `--rm` beibehalten und das TinyGo-Image lokal behalten. Falls Container-Neuanlage tatsächlich stört, einmalig einen benannten Build-Container anlegen und für weitere Builds mit `docker start -ai <name>` wiederverwenden; Arbeitsverzeichnis und Bind-Mount müssen dabei auf `/opt/wanderer-dev/wanderer-garmin-plugin` zeigen.
-4. Keine regelmäßigen `docker pull`-Aufrufe in den Build einbauen. Das Image nur bei Bedarf aktualisieren; danach sicherstellen, dass TinyGo-Version und Build-Ergebnis weiterhin stimmen.
+- `--rm` entfernt nur den beendeten Container, nicht das TinyGo-Image. Ein vorhandenes Image wird von Docker bei `docker run` lokal verwendet und nicht erneut heruntergeladen.
+- Den einfachen Ablauf mit `--rm` beibehalten. Ein benannter Container ist nicht nötig; das Image bei Bedarf aktualisieren, aber keinen regelmäßigen `docker pull` in den Build einbauen.
 
-## Nächste Schritte
+## Offene Punkte
 
-1. Import ist in der GUI bestätigt; der Abgleich 57 Referenzen zu 48 Trails ist erledigt.
-2. Erledigt: Diagnose-Logs reduziert und Plugin neu bauen/installieren. Bei künftigen Problemen zuerst die kompakte Aktivitätszeile und Fehlerlogs prüfen; eine GPX-Vorschau bei Bedarf gezielt temporär ergänzen.
-3. Falls jede Garmin-Aktivität als eigener Trail gewünscht ist, `merge.enabled` für die Garmin-Instanz deaktivieren. Aktuell bleibt Auto-Merge aktiv und führt ähnliche Aktivitäten zusammen.
+- Den zuvor geteilten Garmin API-Key in Garmin Connect widerrufen und einen neuen verwenden. Zugangsdaten nicht in Logs, TODO-Dateien oder Commits speichern.
+- Bei künftigen Importproblemen zuerst die kompakte Aktivitätszeile und Fehlerlogs prüfen; eine GPX-Vorschau nur bei Bedarf gezielt temporär ergänzen.
+- Einen erneuten Diagnose-Sync nur ausführen, falls neue API-Daten zur Fehlersuche nötig sind (Ablauf siehe unten).
+
+Auto-Merge bleibt aktiviert und ist kein offener Punkt.
 
 ## Wiederholung des Garmin-Sync-Diagnoselaufs (nur falls neue API-Daten erforderlich sind)
 
@@ -76,8 +78,8 @@ Das Plugin baut und installiert erfolgreich. Die Garmin-Activities werden import
 
 ## Relevante Dateien
 
-- `garmin.go`, `types.go`, `plugin.json`: Parser, Detail-Trackpunkte, Manifest und ausführliche Handoff-Diagnose.
-- `README.md`: dokumentiertes API-Antwortformat und Zeitformat-Hinweis.
+- `garmin.go`, `types.go`, `plugin.json`: Parser, Detail-Trackpunkte, Manifest und kompakte Diagnose-Logs.
+- `README.md`: dokumentiertes API-Antwortformat, Zeitformat, Startdatum und Seitennavigation für den Vollimport.
 - `garmin-personal-api-python/`: lokaler Clone des offiziellen Clients.
 - `docker-compose.yaml`: aktueller Cron ist täglich um 02:00.
 
