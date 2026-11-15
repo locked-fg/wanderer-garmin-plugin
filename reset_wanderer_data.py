@@ -56,6 +56,25 @@ def list_record_ids(base_url, token, collection):
         page += 1
 
 
+def garmin_instance_status(base_url, token):
+    query = urllib.parse.urlencode({"perPage": 500})
+    _, result = request_json(
+        base_url, f"/api/collections/plugin_instances/records?{query}", token
+    )
+    instances = [
+        record for record in result.get("items", []) if record.get("plugin_id") == "garmin"
+    ]
+    if len(instances) != 1:
+        raise RuntimeError(f"Expected one Garmin plugin instance, found {len(instances)}")
+    instance = instances[0]
+    return {
+        "enabled": instance.get("enabled"),
+        "status": instance.get("status"),
+        "last_sync_at": instance.get("last_sync_at"),
+        "last_error": instance.get("last_error"),
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", default="http://127.0.0.1:8091")
@@ -72,6 +91,12 @@ def main():
         for collection, label in collections:
             initial[collection] = list_record_ids(args.base_url, token, collection)
             print(f"{label}: {len(initial[collection])}")
+        status = garmin_instance_status(args.base_url, token)
+        print(
+            "Garmin plugin: "
+            f"enabled={status['enabled']} status={status['status']} "
+            f"last_sync_at={status['last_sync_at']} last_error={status['last_error']}"
+        )
 
         if not args.delete:
             print("Report only. Pass --delete to remove these records.")

@@ -69,7 +69,7 @@ python3 clear_trails.py
 
 ### Reset Routes and Activities through the API
 ```bash
-# Report counts only; prompts for the Wanderer API token
+# Report counts and Garmin sync status only; prompts for the Wanderer API token
 python3 reset_wanderer_data.py
 
 # Delete Activities and Routes, then verify both collections are empty
