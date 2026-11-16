@@ -64,6 +64,80 @@ docker compose restart db
 
 `make clean` removes generated build output. `/dist/` is ignored by Git. `make install-local` uses `WANDERER_DATA_DIR` if set; otherwise it installs to the sibling `data/` directory. The install command mounts the parent directory so that default location is available inside Docker.
 
+## Git Workflow and Branching Strategy
+
+### Branching Model
+
+**Always use feature branches for development.** This ensures `main` remains stable and functional at all times, which is critical when multiple agents collaborate.
+
+**Branch Naming Convention:**
+```
+feature/<short-description>
+fix/<issue-description>
+docs/<documentation-topic>
+```
+
+**Examples:**
+- `feature/fix-caching`
+- `feature/garmin-parser`
+- `fix/token-exchange`
+- `docs/install-guide`
+
+### Standard Workflow
+
+1. **Start from main:**
+   ```bash
+   git checkout main
+   git pull origin main
+   ```
+
+2. **Create feature branch:**
+   ```bash
+   git checkout -b feature/<description>
+   git push origin feature/<description>
+   ```
+
+3. **Make changes and commit:**
+   ```bash
+   git add .
+   git commit -m "<type>: <description>"
+   git push origin feature/<description>
+   ```
+
+4. **Test thoroughly**
+
+5. **Merge to main:**
+   ```bash
+   git checkout main
+   git merge feature/<description>
+   git push origin main
+   ```
+
+6. **Clean up:**
+   ```bash
+   git branch -d feature/<description>
+   git push origin --delete feature/<description>
+   ```
+
+### Why Branches Are Required
+
+- **Main stability:** Main should always be in a working state
+- **Isolated experiments:** Multiple agents can work on different features simultaneously
+- **Easy rollback:** If something breaks, simply delete the branch
+- **Code review:** Pull requests enable review before merging
+- **Upstream contribution:** GitHub PRs require branches
+
+### When Main Development Is Acceptable
+
+Only for:
+- Tiny, safe fixes (e.g., documentation typos)
+- Emergency hotfixes that must be deployed immediately
+- Single-agent work with immediate testing
+
+**For multi-agent collaboration: Always use branches!**
+
+---
+
 ## Development checks
 
 After installation, add/configure Garmin in Wanderer, provide the `apiKey`, and sync. Inspect plugin status and container logs if the import fails. Optional helpers and their invocation are documented in [SCRIPTS.md](SCRIPTS.md). Some cleanup helpers delete local Wanderer data; check each script's `--help` and dry-run option before using it.
