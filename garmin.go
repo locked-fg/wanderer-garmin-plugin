@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/open-wanderer/wanderer/plugins/garmin/internal/garminutil"
 	"github.com/open-wanderer/wanderer/plugins/garmin/internal/garmintrack"
 	"github.com/open-wanderer/wanderer/plugins/sdk"
 )
@@ -375,7 +376,11 @@ func syncActivities(client *garminClient, input listInput) (listOutput, error) {
 	}
 
 	// Parse after date from options
-	after := parseAfterDate(input.Options)
+	after, err := garminutil.ParseAfterDate(input.Options)
+	if err != nil {
+		logHelper(sdk.LogLevelError, "Garmin: "+err.Error())
+		return listOutput{}, err
+	}
 
 	activities, err := client.searchActivities(page, limit, after)
 	if err != nil {
@@ -388,12 +393,13 @@ func syncActivities(client *garminClient, input listInput) (listOutput, error) {
 	for _, activity := range activities {
 		// Filter by after date if not already filtered by API
 		if !after.IsZero() {
-			startTime, parseErr := parseActivityStartTime(activity.StartTime)
+			startTime, parseErr := garminutil.ParseActivityStartTime(activity.StartTime)
 			if parseErr != nil && activity.StartTimeLocal != "" {
-				startTime, parseErr = parseActivityStartTime(activity.StartTimeLocal)
+				startTime, parseErr = garminutil.ParseActivityStartTime(activity.StartTimeLocal)
 			}
 			if parseErr != nil {
 				invalidStartTime++
+				logHelper(sdk.LogLevelWarn, fmt.Sprintf("Garmin: skipping activity %d: unparseable start time %q / %q: %v", activity.ActivityID, activity.StartTime, activity.StartTimeLocal, parseErr))
 				continue
 			}
 			if startTime.Before(after) {
@@ -444,56 +450,6 @@ func syncRoutes(client *garminClient, input listInput) (listOutput, error) {
 		State:   map[string]any{},
 		HasMore: false,
 	}, nil
-}
-
-// Parse after date from options
-func parseAfterDate(options map[string]any) time.Time {
-	if options == nil {
-		return time.Time{}
-	}
-
-	afterStr, ok := options["after"].(string)
-	if !ok || afterStr == "" {
-		return time.Time{}
-	}
-
-	// Try to parse various date formats
-	date, err := time.Parse("2006-01-02", afterStr)
-	if err == nil {
-		return date
-	}
-
-	date, err = time.Parse(time.RFC3339, afterStr)
-	if err == nil {
-		return date
-	}
-
-	date, err = time.Parse("2006-01-02T15:04:05.000Z", afterStr)
-	if err == nil {
-		return date
-	}
-
-	return time.Time{}
-}
-
-func parseActivityStartTime(value string) (time.Time, error) {
-	for _, layout := range []string{
-		time.RFC3339Nano,
-		"2006-01-02T15:04:05.999999999-0700",
-		"2006-01-02T15:04:05-0700",
-		"2006-01-02T15:04:05.999999999",
-		"2006-01-02T15:04:05.000Z",
-		"2006-01-02T15:04:05Z",
-		"2006-01-02T15:04:05.000",
-		"2006-01-02T15:04:05",
-		"2006-01-02 15:04:05.999999999",
-		"2006-01-02 15:04:05",
-	} {
-		if parsed, err := time.Parse(layout, value); err == nil {
-			return parsed, nil
-		}
-	}
-	return time.Time{}, fmt.Errorf("unsupported Garmin activity start time format")
 }
 
 // Get activity detail and map to trail import
@@ -598,7 +554,7 @@ func mapActivityToTrail(activity *garminActivityDetail, gpxData []byte) (trailIm
 	// Normalize it to RFC3339 because the host decodes startedAt as time.Time.
 	startedAt := ""
 	if activity.StartTime != "" {
-		if parsed, err := parseActivityStartTime(activity.StartTime); err == nil {
+		if parsed, err := garminutil.ParseActivityStartTime(activity.StartTime); err == nil {
 			startedAt = parsed.UTC().Format(time.RFC3339)
 		} else {
 			logHelper(sdk.LogLevelWarn, fmt.Sprintf("Garmin: unable to parse startTimeGMT %q; omitting startedAt", activity.StartTime))
