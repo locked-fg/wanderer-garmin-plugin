@@ -64,6 +64,93 @@ docker compose restart db
 
 `make clean` removes generated build output. `/dist/` is ignored by Git. `make install-local` uses `WANDERER_DATA_DIR` if set; otherwise it installs to the sibling `data/` directory. The install command mounts the parent directory so that default location is available inside Docker.
 
+## Git Workflow and Branching Strategy
+
+### Branching Model
+
+**Always use feature branches for development.** This ensures `main` remains stable and functional at all times, which is critical when multiple agents collaborate.
+
+**Branch Naming Convention:**
+```
+feature/<short-description>
+fix/<issue-description>
+docs/<documentation-topic>
+```
+
+**Examples:**
+- `feature/fix-caching`
+- `feature/garmin-parser`
+- `fix/token-exchange`
+- `docs/install-guide`
+
+### Standard Workflow
+
+1. **Start from main:**
+   ```bash
+   git checkout main
+   git pull origin main
+   ```
+
+2. **Create feature branch:**
+   ```bash
+   git checkout -b feature/<description>
+   git push origin feature/<description>
+   ```
+
+3. **Make changes and commit:**
+   ```bash
+   git add .
+   git commit -m "<type>: <description>"
+   git push origin feature/<description>
+   ```
+
+4. **Test thoroughly**
+
+5. **Merge to main:**
+   ```bash
+   git checkout main
+   git merge feature/<description>
+   git push origin main
+   ```
+
+6. **Clean up:**
+   ```bash
+   git branch -d feature/<description>
+   git push origin --delete feature/<description>
+   ```
+
+### Why Branches Are Required
+
+- **Main stability:** Main should always be in a working state
+- **Isolated experiments:** Multiple agents can work on different features simultaneously
+- **Easy rollback:** If something breaks, simply delete the branch
+- **Code review:** Pull requests enable review before merging
+- **Upstream contribution:** GitHub PRs require branches
+
+### When Main Development Is Acceptable
+
+Only for:
+- Tiny, safe fixes (e.g., documentation typos)
+- Emergency hotfixes that must be deployed immediately
+- Single-agent work with immediate testing
+
+**For multi-agent collaboration: Always use branches!**
+
+---
+
 ## Development checks
 
 After installation, add/configure Garmin in Wanderer, provide the `apiKey`, and sync. Inspect plugin status and container logs if the import fails. Optional helpers and their invocation are documented in [SCRIPTS.md](SCRIPTS.md). Some cleanup helpers delete local Wanderer data; check each script's `--help` and dry-run option before using it.
+
+### Run a one-off plugin sync in the dev instance
+
+The dev Compose file sets `POCKETBASE_CRON_SYNC_SCHEDULE` to `0 2 * * *`. To test an import immediately, temporarily change it to a one-time cron expression for the next minute in the database container's timezone, then recreate the database service so it picks up the schedule:
+
+```bash
+docker compose up -d --force-recreate db
+docker compose logs -f db
+```
+
+Wait for the plugin instance to return to `configured` and review the import logs. Restore the normal schedule (`0 2 * * *`) and recreate `db` afterward. Avoid `* * * * *` for Garmin imports: a sync that fetches many activity details can take longer than a minute, allowing another run to start before the first one finishes.
+
+For API cleanup, `scripts/reset_wanderer_data.py` reports the Activities (`summit_logs`) and Routes (`trails`) counts by default. Its `--delete` option deletes both collections, so use it only when both should be cleared. Route-only cleanup should delete records from the `trails` collection through the Wanderer API and verify that the collection is empty afterward. The script requires `WANDERER_API_TOKEN`; do not put the token in command history or documentation.
