@@ -176,25 +176,29 @@ A conversation (message thread) is **automatically complete** when:
 
 ## Message Retention and Cleanup
 
+### Message Retention Policy
+
+Since all messages are tracked in Git history, **permanent retention is not required** for audit purposes.
+
+**Recommended approach:**
+- Keep messages that are still relevant or active
+- Delete messages when they are no longer needed
+- Use Git history if you need to reference old conversations
+
 ### When to delete message files
 
-**Messages should generally be RETAINED** for historical reference and audit purposes.
-
-**Delete messages only when:**
+**Delete messages when:**
 1. The message contains sensitive information that was accidentally included (API keys, tokens, personal data)
 2. The message is a duplicate with the same content and ID
 3. The message is in the wrong format and needs to be replaced
-4. The repository maintainer decides to clean up old messages (after significant time has passed)
+4. The conversation is complete and messages are cluttering the directory
 
-### Retention policy recommendations
+### When to keep message files
 
-| Message Type | Recommended Retention | Rationale |
-|--------------|----------------------|-----------|
-| Request/Implementation | Permanent | Code history, audit trail |
-| Validation Results | Permanent | Test history, regression reference |
-| Blocked/Questions | Permanent | Context for future work |
-| Updates | Permanent | Progress tracking |
-| Duplicate/Erroneous | Delete immediately | Avoids confusion |
+**Keep messages when:**
+1. The conversation is still active (status: request, update, blocked, validation)
+2. The message contains useful reference information
+3. You want to maintain context for future work
 
 ### Cleanup procedure
 
@@ -218,10 +222,10 @@ If messages must be deleted:
 
 4. **Push:**
    ```bash
-   git push origin main
+   git push origin feature/fix-caching
    ```
 
-**Note:** Force-pushing to delete messages from remote is generally discouraged unless the message contains sensitive data. Prefer to keep history intact.
+**Note:** Since Git tracks all history, you can always recover deleted messages using `git checkout` or `git log`.
 
 ---
 
