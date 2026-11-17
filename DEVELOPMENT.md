@@ -67,3 +67,16 @@ docker compose restart db
 ## Development checks
 
 After installation, add/configure Garmin in Wanderer, provide the `apiKey`, and sync. Inspect plugin status and container logs if the import fails. Optional helpers and their invocation are documented in [SCRIPTS.md](SCRIPTS.md). Some cleanup helpers delete local Wanderer data; check each script's `--help` and dry-run option before using it.
+
+### Run a one-off plugin sync in the dev instance
+
+The dev Compose file sets `POCKETBASE_CRON_SYNC_SCHEDULE` to `0 2 * * *`. To test an import immediately, temporarily change it to a one-time cron expression for the next minute in the database container's timezone, then recreate the database service so it picks up the schedule:
+
+```bash
+docker compose up -d --force-recreate db
+docker compose logs -f db
+```
+
+Wait for the plugin instance to return to `configured` and review the import logs. Restore the normal schedule (`0 2 * * *`) and recreate `db` afterward. Avoid `* * * * *` for Garmin imports: a sync that fetches many activity details can take longer than a minute, allowing another run to start before the first one finishes.
+
+For API cleanup, `scripts/reset_wanderer_data.py` reports the Activities (`summit_logs`) and Routes (`trails`) counts by default. Its `--delete` option deletes both collections, so use it only when both should be cleared. Route-only cleanup should delete records from the `trails` collection through the Wanderer API and verify that the collection is empty afterward. The script requires `WANDERER_API_TOKEN`; do not put the token in command history or documentation.
