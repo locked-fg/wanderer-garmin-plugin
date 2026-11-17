@@ -25,18 +25,11 @@ const (
 
 // Garmin client structure
 type garminClient struct {
-	accessToken string
-	apiKey      string
-	baseURL     string
+	accessToken    string
+	apiKey         string
+	baseURL        string
+	trackShapeLogged bool // Track if shape was logged for this client instance
 }
-
-// The host reuses a WASM session for list and detail calls within one sync.
-// Cache the exchanged token in that session so each imported activity does
-// not repeat token exchange and Garmin's activation wait.
-var cachedAPIKey string
-var cachedAccessToken string
-var cachedActivities map[string]garminActivity
-var trackShapeLogged bool
 
 // Token exchange response
 type tokenExchangeResponse struct {
@@ -63,24 +56,20 @@ func newGarminClient(auth map[string]any) (*garminClient, error) {
 	}
 
 	// If we have an API key but no access token, exchange it
+	// Note: Token exchange happens per client instance (no global caching)
+	// This ensures each sync has its own token and prevents cross-account issues
 	if apiKey != "" && accessToken == "" {
-		if cachedAPIKey == apiKey && cachedAccessToken != "" {
-			client.accessToken = cachedAccessToken
-		} else {
-			logHelper(sdk.LogLevelInfo, "Garmin: Exchanging API key for access token")
-			token, err := client.exchangeAPIKeyForToken()
-			if err != nil {
-				logHelper(sdk.LogLevelError, fmt.Sprintf("Garmin: Token exchange failed: %v", err))
-				return nil, fmt.Errorf("failed to exchange API key for token: %w", err)
-			}
-			client.accessToken = token
-			cachedAPIKey = apiKey
-			cachedAccessToken = token
-			logHelper(sdk.LogLevelInfo, "Garmin: Token received, waiting 15s for activation")
-			// Give token time to activate (Garmin tokens may need 10-30 seconds)
-			time.Sleep(15 * time.Second)
-			logHelper(sdk.LogLevelInfo, "Garmin: Token activation complete")
+		logHelper(sdk.LogLevelInfo, "Garmin: Exchanging API key for access token")
+		token, err := client.exchangeAPIKeyForToken()
+		if err != nil {
+			logHelper(sdk.LogLevelError, fmt.Sprintf("Garmin: Token exchange failed: %v", err))
+			return nil, fmt.Errorf("failed to exchange API key for token: %w", err)
 		}
+		client.accessToken = token
+		logHelper(sdk.LogLevelInfo, "Garmin: Token received, waiting 15s for activation")
+		// Give token time to activate (Garmin tokens may need 10-30 seconds)
+		time.Sleep(15 * time.Second)
+		logHelper(sdk.LogLevelInfo, "Garmin: Token activation complete")
 	}
 
 	// If we still don't have an access token, fail
@@ -275,14 +264,14 @@ func (c *garminClient) getActivityTrackPoints(activityID int64) ([]trackPoint, e
 	}
 	details, points, err := garmintrack.ParseActivityTrackDetails(body)
 	if err != nil {
-		if !trackShapeLogged {
-			trackShapeLogged = true
+		if !c.trackShapeLogged {
+			c.trackShapeLogged = true
 			logActivityTrackShape(body)
 		}
 		return nil, fmt.Errorf("failed to parse Garmin activity track details: %w", err)
 	}
-	if !trackShapeLogged {
-		trackShapeLogged = true
+	if !c.trackShapeLogged {
+		c.trackShapeLogged = true
 		descriptorKeys := make([]string, 0, len(details.MetricDescriptors))
 		for _, descriptor := range details.MetricDescriptors {
 			descriptorKeys = append(descriptorKeys, descriptor.Key)
@@ -394,9 +383,6 @@ func syncActivities(client *garminClient, input listInput) (listOutput, error) {
 	}
 
 	items := make([]trailSummary, 0, len(activities))
-	if page == 1 || cachedActivities == nil {
-		cachedActivities = make(map[string]garminActivity)
-	}
 	filteredByDate := 0
 	invalidStartTime := 0
 	for _, activity := range activities {
@@ -417,7 +403,6 @@ func syncActivities(client *garminClient, input listInput) (listOutput, error) {
 		}
 
 		externalID := strconv.FormatInt(activity.ActivityID, 10)
-		cachedActivities[externalID] = activity
 		items = append(items, trailSummary{
 			Source: trailImportSource{
 				Provider:   "garmin",
@@ -519,38 +504,10 @@ func getActivityDetail(client *garminClient, input detailInput, kind string) (tr
 		return trailImport{}, fmt.Errorf("invalid activity ID: %w", err)
 	}
 
-	externalID := strconv.FormatInt(activityID, 10)
-	activity, ok := cachedActivities[externalID]
-	var detail *garminActivityDetail
-	if ok {
-		startTime := activity.StartTime
-		if startTime == "" {
-			startTime = activity.StartTimeLocal
-		}
-		detail = &garminActivityDetail{
-			ActivityID:    activity.ActivityID,
-			ActivityName:  activity.ActivityName,
-			StartTime:     startTime,
-			Duration:      activity.Duration,
-			Distance:      activity.Distance,
-			ElevationGain: activity.ElevationGain,
-			ElevationLoss: activity.ElevationLoss,
-			AverageSpeed:  activity.AverageSpeed,
-			MaxSpeed:      activity.MaxSpeed,
-			Calories:      activity.Calories,
-			ActivityType:  activity.ActivityType,
-			StartLat:      activity.StartLat,
-			StartLon:      activity.StartLon,
-			EndLat:        activity.EndLat,
-			EndLon:        activity.EndLon,
-			Privacy:       activity.Privacy,
-		}
-	} else {
-		var err error
-		detail, err = client.getActivity(activityID)
-		if err != nil {
-			return trailImport{}, fmt.Errorf("failed to get activity detail: %w", err)
-		}
+	// Always fetch activity details directly from API (no caching to prevent cross-account issues)
+	detail, err := client.getActivity(activityID)
+	if err != nil {
+		return trailImport{}, fmt.Errorf("failed to get activity detail: %w", err)
 	}
 	points, err := client.getActivityTrackPoints(activityID)
 	if err != nil {
