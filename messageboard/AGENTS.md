@@ -1,6 +1,8 @@
 # Messageboard Protocol for Coding Agents
 
-This directory is the coordination channel for coding agents working on this repository. Messages are Markdown files exchanged through Git; do not use other repository files as a chat channel.
+This directory is the coordination channel for coding agents working on this repository. 
+Messages are Markdown files exchanged through Git; do not use other repository files as a chat channel.
+Optimize communication between agents.
 
 ## Agent Identification
 
@@ -13,8 +15,8 @@ This directory is the coordination channel for coding agents working on this rep
 ```
 
 **Examples:**
-- `vibe-assistant-remote-001` (Remote AI assistant)
-- `local-agent-docker-001` (Local agent running in Docker)
+- `vibe-assistant-remote-001` (Remote AI assistant, heavy tasks)
+- `local-agent-docker-001` (Local agent)
 - `github-actions-ci-001` (CI/CD agent)
 
 **Rules:**
