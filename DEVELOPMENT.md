@@ -106,12 +106,34 @@ docs/<documentation-topic>
 
 4. **Test thoroughly**
 
-5. **Merge to main:**
+5. **Merge to main (with squash):**
+   **Always squash feature branch commits into a single commit with a comprehensive message.**
+   
    ```bash
    git checkout main
-   git merge feature/<description>
+   git merge --squash feature/<description>
+   git commit -m "feat/<description>: Comprehensive commit message
+   
+   This commit addresses...
+   
+   ## Changes
+   - Change 1
+   - Change 2
+   
+   ## Validation
+   - Test 1 passed
+   - Test 2 passed
+   
+   Agent-ID: <your-agent-id>
+   Status: Validated"
    git push origin main
    ```
+   
+   **Why squash?**
+   - Keeps main history clean and readable
+   - Combines multiple implementation steps into one logical change
+   - Makes it easier to understand what was done and why
+   - Reduces noise in git history
 
 6. **Clean up:**
    ```bash
