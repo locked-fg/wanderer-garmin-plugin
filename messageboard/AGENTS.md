@@ -121,9 +121,107 @@ subject: short summary
 |--------|-------------|-------------|
 | `request` | Initial request for work | Remote agent implements |
 | `update` | Progress update | Continue or acknowledge |
-| `done` | Work completed | Local agent validates |
+| `done` | Work completed | No reply needed, conversation complete |
 | `blocked` | Cannot proceed, needs input | Requester provides input |
-| `validation` | Ready for local testing | Local agent tests |
+| `validation` | Ready for local testing | Local agent tests and replies |
+
+---
+
+## Conversation Lifecycle and Completion
+
+### When is a conversation considered complete?
+
+A conversation (message thread) is **automatically complete** when:
+
+1. **Status is `done`:**
+   - The requested work is implemented and validated
+   - No further action is required from any agent
+   - Example: Local agent confirms validation passed
+
+2. **No reply is needed:**
+   - A message with status `done` does not require a reply
+   - Both agents can consider the task finished
+   - Example: `2026-11-17-002-from-local-agent-docker-001.md` (validation passed)
+
+3. **All questions are answered:**
+   - All requested information has been provided
+   - All tests have passed
+   - All issues have been resolved
+
+### When to create a new message thread
+
+**Create a NEW message thread when:**
+- Starting a new, unrelated task
+- The scope has changed significantly from the original request
+- A new, independent issue has been discovered
+- Beginning work on a different feature or bug
+
+**Do NOT create a new thread when:**
+- Following up on an existing request (use `in-reply-to`)
+- Providing additional information for current work
+- Asking clarification questions about current task
+- Updating progress on existing work (use status `update`)
+
+### When a reply IS needed
+
+| Previous Message Status | Reply Needed? | Expected Reply Status |
+|------------------------|---------------|----------------------|
+| `request` | ✅ Yes | `update`, `done`, `blocked` |
+| `update` | ⚠️ Optional | `update`, `done`, acknowledgment |
+| `done` | ❌ No | N/A (conversation complete) |
+| `blocked` | ✅ Yes | Provides requested input |
+| `validation` | ✅ Yes | `done` or `blocked` |
+
+---
+
+## Message Retention and Cleanup
+
+### When to delete message files
+
+**Messages should generally be RETAINED** for historical reference and audit purposes.
+
+**Delete messages only when:**
+1. The message contains sensitive information that was accidentally included (API keys, tokens, personal data)
+2. The message is a duplicate with the same content and ID
+3. The message is in the wrong format and needs to be replaced
+4. The repository maintainer decides to clean up old messages (after significant time has passed)
+
+### Retention policy recommendations
+
+| Message Type | Recommended Retention | Rationale |
+|--------------|----------------------|-----------|
+| Request/Implementation | Permanent | Code history, audit trail |
+| Validation Results | Permanent | Test history, regression reference |
+| Blocked/Questions | Permanent | Context for future work |
+| Updates | Permanent | Progress tracking |
+| Duplicate/Erroneous | Delete immediately | Avoids confusion |
+
+### Cleanup procedure
+
+If messages must be deleted:
+
+1. **Pull first:**
+   ```bash
+   git pull --ff-only
+   ```
+
+2. **Delete locally:**
+   ```bash
+   rm messageboard/YYYY-MM-DD-NNN-from-<agent-id>.md
+   ```
+
+3. **Commit with clear message:**
+   ```bash
+   git add messageboard/
+   git commit -m "messageboard: Remove duplicate/erroneous message YYYY-MM-DD-NNN"
+   ```
+
+4. **Push:**
+   ```bash
+   git push origin main
+   ```
+
+**Note:** Force-pushing to delete messages from remote is generally discouraged unless the message contains sensitive data. Prefer to keep history intact.
 
 ---
 
