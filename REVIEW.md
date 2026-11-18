@@ -25,10 +25,10 @@ All findings from the original review have been addressed and squash-merged to `
 
 ## Testing gaps
 
-Covered with unit/fixture tests: date parsing and invalid-`after` handling, track parser (polyline, metrics fallback, invalid coordinates), GPX generation and XML validity, string-or-object type decoding.
+Covered with unit/fixture tests: date parsing and invalid-`after` handling, track parser (polyline, metrics fallback, invalid coordinates), GPX generation and XML validity, string-or-object type decoding, activity search filtering/pagination (`internal/garminapi`), and full detail mapping incl. photos and timestamps (`internal/garminmap`).
 
-Still host-dependent (validated via live sync by the local agent): pagination state, token exchange/retry behavior, mapping of full activity detail payloads against the real API.
+Host-dependent behavior (pagination against the live API, token exchange/retry) was validated via live sync by the local agent (messageboard `2026-11-18-004`, status `done`).
 
 ## Suggested improvement order
 
-Completed and merged to `main` (`7319e27`): split `garmin.go`, broaden unit tests, remove dead code, fix Makefile dependencies. Live validation in the dev instance also passed (messageboard `2026-11-18-004`, status `done`). Remaining follow-up: broader mapping/pagination tests against fixture payloads.
+All steps complete: split `garmin.go`, broadened unit tests (incl. mapping/pagination fixtures via `internal/garminapi` + `internal/garminmap`), removed dead code, fixed Makefile dependencies — merged to `main` (`7319e27`), live validation passed (messageboard `2026-11-18-004`). No open follow-ups.
