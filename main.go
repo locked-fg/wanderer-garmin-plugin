@@ -4,9 +4,11 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"strconv"
 
 	"github.com/extism/go-pdk"
+	"github.com/open-wanderer/wanderer/plugins/garmin/internal/garminutil"
 )
 
 func main() {}
@@ -49,6 +51,10 @@ func listActivitiesV1() int32 {
 
 	output, err := syncActivities(client, input)
 	if err != nil {
+		var configErr *garminutil.ConfigError
+		if errors.As(err, &configErr) {
+			return fail("invalid_request", err.Error())
+		}
 		return fail("provider_unavailable", err.Error())
 	}
 

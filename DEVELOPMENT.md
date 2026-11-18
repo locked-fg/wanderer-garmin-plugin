@@ -17,6 +17,7 @@ The plugin implements Wanderer's `list_activities`, `get_activity_detail`, `list
 ## Requirements
 
 Docker is the supported build environment; host Go/TinyGo installations are not required. Parser tests use Go's standard test runner. The tested TinyGo image is `tinygo/tinygo:0.44.0`.
+The Wanderer API Key is available via Environment variable: WANDERER_DEV_API
 
 ## Test and build
 
@@ -163,6 +164,10 @@ Only for:
 ## Development checks
 
 After installation, add/configure Garmin in Wanderer, provide the `apiKey`, and sync. Inspect plugin status and container logs if the import fails. Optional helpers and their invocation are documented in [SCRIPTS.md](SCRIPTS.md). Some cleanup helpers delete local Wanderer data; check each script's `--help` and dry-run option before using it.
+
+For Garmin plugin validation in the local development environment, follow the [Garmin integration test skill](.agents/skills/garmin-integration-test/SKILL.md). It prioritizes fixture tests and a bounded live smoke test, and covers API verification, safe state handling, and restoring the schedule and configuration.
+
+For shared testing principles on choosing test scope, verifying results, limiting side effects, handling credentials, and reporting partial runs, see the repository [testing guide](../TESTING.md).
 
 ### Run a one-off plugin sync in the dev instance
 

@@ -93,10 +93,10 @@
         "de": "Startdatum",
         "en": "Start date"
       },
-      "description": "Ignore activities and routes before this date.",
+      "description": "Ignore activities and routes before this date (YYYY-MM-DD or RFC3339). Leave empty to import everything.",
       "descriptions": {
-        "de": "Aktivitäten und Routen vor diesem Datum ignorieren.",
-        "en": "Ignore activities and routes before this date."
+        "de": "Aktivitäten und Routen vor diesem Datum ignorieren (JJJJ-MM-TT oder RFC3339). Leer lassen, um alles zu importieren.",
+        "en": "Ignore activities and routes before this date (YYYY-MM-DD or RFC3339). Leave empty to import everything."
       }
     }
   ],
