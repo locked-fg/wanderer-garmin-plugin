@@ -25,6 +25,14 @@ WANDERER_DATA_DIR="../data" python3 scripts/check_plugin_status.py
 - `trigger_sync.py`, `check_and_trigger_import.py`: trigger a sync.
 - `decrypt_test.py`, `test_save_process.py`: inspect/test local save and encryption behavior.
 
+For the local dev checkout, the Wanderer API token is available in the `WANDERER_DEV_API` environment variable. `reset_wanderer_data.py` reads `WANDERER_API_TOKEN`, so pass it without printing the value:
+
+```bash
+WANDERER_API_TOKEN="$WANDERER_DEV_API" python3 scripts/reset_wanderer_data.py
+```
+
+Do not copy the token value into documentation or command text.
+
 ## Data cleanup
 
 - `reset_wanderer_data.py`: report or delete routes and activities through the Wanderer API; supports a confirmation-oriented `--delete` mode.

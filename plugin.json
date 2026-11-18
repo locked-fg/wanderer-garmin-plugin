@@ -3,7 +3,7 @@
   "id": "garmin",
   "type": "trails",
   "name": "Garmin",
-  "description": "Imports Garmin activities and routes into wanderer.",
+  "description": "Imports Garmin activities into wanderer. Saved Garmin routes/courses are not available via the Personal API.",
   "version": "0.1.0",
   "runtime": {
     "type": "wasm",
@@ -93,10 +93,10 @@
         "de": "Startdatum",
         "en": "Start date"
       },
-      "description": "Ignore activities and routes before this date (YYYY-MM-DD or RFC3339). Leave empty to import everything.",
+      "description": "Ignore activities before this date (YYYY-MM-DD or RFC3339). Leave empty to import everything.",
       "descriptions": {
-        "de": "Aktivitäten und Routen vor diesem Datum ignorieren (JJJJ-MM-TT oder RFC3339). Leer lassen, um alles zu importieren.",
-        "en": "Ignore activities and routes before this date (YYYY-MM-DD or RFC3339). Leave empty to import everything."
+        "de": "Aktivitäten vor diesem Datum ignorieren (JJJJ-MM-TT oder RFC3339). Leer lassen, um alles zu importieren.",
+        "en": "Ignore activities before this date (YYYY-MM-DD or RFC3339). Leave empty to import everything."
       }
     }
   ],
@@ -129,12 +129,12 @@
   },
   "metadata": {
     "descriptions": {
-      "de": "Importiert Garmin-Aktivitäten und -Routen in wanderer.",
-      "en": "Imports Garmin activities and routes into wanderer."
+      "de": "Importiert Garmin-Aktivitäten in wanderer. Gespeicherte Garmin-Routen sind über die Personal API nicht verfügbar.",
+      "en": "Imports Garmin activities into wanderer. Saved Garmin routes/courses are not available via the Personal API."
     },
     "information": {
-      "de": "Dieses Plugin verbindet wanderer über die offizielle Garmin Personal API mit deinem Garmin-Konto. Es importiert Aktivitäten, Routen und zugehörige Daten. Für die Verbindung hinterlegst du deinen persönlichen Garmin API-Key.",
-      "en": "This plugin connects wanderer to your Garmin account through the official Garmin Personal API. It imports activities, routes, and their data. To connect, provide your Garmin Personal API key."
+      "de": "Dieses Plugin verbindet wanderer über die offizielle Garmin Personal API mit deinem Garmin-Konto. Es importiert Aktivitäten und zugehörige Daten; gespeicherte Routen/Kurse können nicht importiert werden. Für die Verbindung hinterlegst du deinen persönlichen Garmin API-Key.",
+      "en": "This plugin connects wanderer to your Garmin account through the official Garmin Personal API. It imports activities and their data; saved routes/courses cannot be imported. To connect, provide your Garmin Personal API key."
     },
     "homepageUrl": "https://developer.garmin.com/gc-developer-program/personal/personal-api/",
     "icons": {

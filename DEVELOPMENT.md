@@ -17,7 +17,7 @@ The plugin implements Wanderer's `list_activities`, `get_activity_detail`, `list
 ## Requirements
 
 Docker is the supported build environment; host Go/TinyGo installations are not required. Parser tests use Go's standard test runner. The tested TinyGo image is `tinygo/tinygo:0.44.0`.
-The Wanderer API Key is available via Environment variable: WANDERER_DEV_API
+The dev Wanderer API token is available in the `WANDERER_DEV_API` environment variable. See [SCRIPTS.md](SCRIPTS.md) for using it with the API helpers without exposing its value.
 
 ## Test and build
 
@@ -167,7 +167,7 @@ After installation, add/configure Garmin in Wanderer, provide the `apiKey`, and 
 
 For Garmin plugin validation in the local development environment, follow the [Garmin integration test skill](.agents/skills/garmin-integration-test/SKILL.md). It prioritizes fixture tests and a bounded live smoke test, and covers API verification, safe state handling, and restoring the schedule and configuration.
 
-For shared testing principles on choosing test scope, verifying results, limiting side effects, handling credentials, and reporting partial runs, see the repository [testing guide](../TESTING.md).
+For shared testing principles on choosing test scope, verifying results, limiting side effects, handling credentials, and reporting partial runs, see the [testing guide](TESTING.md).
 
 ### Run a one-off plugin sync in the dev instance
 
@@ -180,4 +180,4 @@ docker compose logs -f db
 
 Wait for the plugin instance to return to `configured` and review the import logs. Restore the normal schedule (`0 2 * * *`) and recreate `db` afterward. Avoid `* * * * *` for Garmin imports: a sync that fetches many activity details can take longer than a minute, allowing another run to start before the first one finishes.
 
-For API cleanup, `scripts/reset_wanderer_data.py` reports the Activities (`summit_logs`) and Routes (`trails`) counts by default. Its `--delete` option deletes both collections, so use it only when both should be cleared. Route-only cleanup should delete records from the `trails` collection through the Wanderer API and verify that the collection is empty afterward. The script requires `WANDERER_API_TOKEN`; do not put the token in command history or documentation.
+For API cleanup, `scripts/reset_wanderer_data.py` reports the Activities (`summit_logs`) and Routes (`trails`) counts by default. Its `--delete` option deletes both collections, so use it only when both should be cleared. Route-only cleanup should delete records from the `trails` collection through the Wanderer API and verify that the collection is empty afterward. The script requires `WANDERER_API_TOKEN`; in this dev checkout, the token is available as `WANDERER_DEV_API`. See [SCRIPTS.md](SCRIPTS.md) for how to pass it without exposing its value.

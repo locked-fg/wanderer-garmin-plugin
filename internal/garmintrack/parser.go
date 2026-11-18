@@ -3,6 +3,7 @@ package garmintrack
 import (
 	"bytes"
 	"encoding/json"
+	"math"
 	"strings"
 )
 
@@ -50,6 +51,9 @@ func ParseActivityTrackDetails(body []byte) (Details, []Point, error) {
 		if point.Valid != nil && !*point.Valid {
 			continue
 		}
+		if !validLatLon(point.Latitude, point.Longitude) {
+			continue
+		}
 		points = append(points, Point{Latitude: point.Latitude, Longitude: point.Longitude, Elevation: point.Elevation})
 	}
 	if len(points) > 0 {
@@ -80,7 +84,7 @@ func ParseActivityTrackDetails(body []byte) (Details, []Point, error) {
 		}
 		lat, latOK := jsonNumber(row.Metrics[latIndex])
 		lon, lonOK := jsonNumber(row.Metrics[lonIndex])
-		if !latOK || !lonOK {
+		if !latOK || !lonOK || !validLatLon(lat, lon) {
 			continue
 		}
 		point := Point{Latitude: lat, Longitude: lon}
@@ -90,6 +94,14 @@ func ParseActivityTrackDetails(body []byte) (Details, []Point, error) {
 		points = append(points, point)
 	}
 	return details, points, nil
+}
+
+// validLatLon rejects non-finite and out-of-range coordinates
+func validLatLon(lat, lon float64) bool {
+	if math.IsNaN(lat) || math.IsInf(lat, 0) || math.IsNaN(lon) || math.IsInf(lon, 0) {
+		return false
+	}
+	return lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180
 }
 
 func jsonNumber(raw json.RawMessage) (float64, bool) {

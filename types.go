@@ -3,44 +3,33 @@
 package main
 
 import (
-	"encoding/json"
-
 	"github.com/open-wanderer/wanderer/plugins/garmin/internal/garmintrack"
+	"github.com/open-wanderer/wanderer/plugins/garmin/internal/garminutil"
 	"github.com/open-wanderer/wanderer/plugins/sdk"
 )
 
-// Input types for list capabilities - use SDK types directly
+// Plugin-facing aliases for SDK types
 type listInput = sdk.ListInput
 type listOutput = sdk.ListOutput
 
-// Input types for detail capabilities - use SDK types directly
 type detailInput = sdk.DetailInput
 
-// Trail summary structure - use SDK type
 type trailSummary = sdk.TrailSummary
 
-// Trail import source - use SDK type
 type trailImportSource = sdk.TrailImportSource
 
-// Trail import structure - use SDK type
 type trailImport = sdk.TrailImport
 
-// Track structure - use SDK type
 type track = sdk.Track
 
-// Waypoint structure - use SDK type
 type waypoint = sdk.Waypoint
 
-// Photo structure - use SDK type
 type photo = sdk.Photo
 
-// Media source structure - use SDK type
 type mediaSource = sdk.MediaSource
 
-// Media reference structure - use SDK type
 type mediaRef = sdk.MediaRef
 
-// Query parameter structure - use SDK type
 type queryParam = sdk.QueryParam
 
 // Garmin API response types
@@ -56,19 +45,11 @@ type garminActivityType struct {
 }
 
 func (activityType *garminActivityType) UnmarshalJSON(data []byte) error {
-	var key string
-	if err := json.Unmarshal(data, &key); err == nil {
-		activityType.TypeKey = key
-		return nil
-	}
-
-	var value struct {
-		TypeKey string `json:"typeKey"`
-	}
-	if err := json.Unmarshal(data, &value); err != nil {
+	key, err := garminutil.UnmarshalTypeKey(data)
+	if err != nil {
 		return err
 	}
-	activityType.TypeKey = value.TypeKey
+	activityType.TypeKey = key
 	return nil
 }
 
@@ -77,19 +58,11 @@ type garminPrivacy struct {
 }
 
 func (privacy *garminPrivacy) UnmarshalJSON(data []byte) error {
-	var key string
-	if err := json.Unmarshal(data, &key); err == nil {
-		privacy.TypeKey = key
-		return nil
-	}
-
-	var value struct {
-		TypeKey string `json:"typeKey"`
-	}
-	if err := json.Unmarshal(data, &value); err != nil {
+	key, err := garminutil.UnmarshalTypeKey(data)
+	if err != nil {
 		return err
 	}
-	privacy.TypeKey = value.TypeKey
+	privacy.TypeKey = key
 	return nil
 }
 

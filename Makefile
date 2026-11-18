@@ -23,7 +23,9 @@ all: build
 # Build the WASM plugin
 build: plugin.wasm
 
-plugin.wasm: main.go garmin.go types.go internal/garmintrack/parser.go internal/garminutil/dates.go
+GO_FILES := $(wildcard *.go) $(wildcard internal/*/*.go)
+
+plugin.wasm: $(GO_FILES) go.mod go.sum
 	@echo "Building Garmin plugin..."
 	cd $(PLUGIN_DIR) && mkdir -p $(DIST_DIR) && $(TINYGO) build $(TINYGO_FLAGS) -target $(TINYGO_TARGET) -o $(DIST_DIR)/plugin.wasm .
 	@echo "Built: $(DIST_DIR)/plugin.wasm"
