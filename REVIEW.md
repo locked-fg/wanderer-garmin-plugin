@@ -10,7 +10,7 @@ The source is serviceable, but it is not yet easy to change safely. Most behavio
 
 ## Findings
 
-All findings from the original review have been addressed on the `code-cleanup` branch:
+All findings from the original review have been addressed and squash-merged to `main` (`7319e27`, formerly the `code-cleanup` branch):
 
 - Package globals / cross-account state: resolved earlier (per-instance `garminClient` state).
 - Invalid `after` values silently disabling filtering: resolved earlier (`internal/garminutil` returns `ConfigError`, host reports `invalid_request`).
@@ -31,4 +31,4 @@ Still host-dependent (validated via live sync by the local agent): pagination st
 
 ## Suggested improvement order
 
-Completed on `code-cleanup` (squash-merge pending): split `garmin.go`, broaden unit tests, remove dead code, fix Makefile dependencies. Remaining follow-ups: broader mapping/pagination tests against fixture payloads, and live validation in the dev instance.
+Completed and merged to `main` (`7319e27`): split `garmin.go`, broaden unit tests, remove dead code, fix Makefile dependencies. Live validation in the dev instance also passed (messageboard `2026-11-18-004`, status `done`). Remaining follow-up: broader mapping/pagination tests against fixture payloads.
