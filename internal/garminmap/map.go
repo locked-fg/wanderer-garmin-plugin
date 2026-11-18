@@ -1,6 +1,4 @@
-//go:build tinygo
-
-package main
+package garminmap
 
 import (
 	"encoding/base64"
@@ -10,34 +8,34 @@ import (
 	"strings"
 	"time"
 
+	"github.com/open-wanderer/wanderer/plugins/garmin/internal/garminapi"
 	"github.com/open-wanderer/wanderer/plugins/garmin/internal/garmintrack"
 	"github.com/open-wanderer/wanderer/plugins/garmin/internal/garminutil"
 	"github.com/open-wanderer/wanderer/plugins/sdk"
 )
 
-// Map Garmin activity to trail import
-func mapActivityToTrail(activity *garminActivityDetail, gpxData []byte) (trailImport, error) {
-	privacy := mapPrivacy(activity.Privacy.TypeKey)
-	difficulty := mapDifficulty(activity.Difficulty)
+// MapActivityToTrail converts a Garmin activity detail into a Wanderer trail
+// import. Non-fatal issues (e.g. an unparseable startTimeGMT) are returned as
+// warnings so the caller can log them in the host.
+func MapActivityToTrail(activity *garminapi.ActivityDetail, gpxData []byte) (sdk.TrailImport, []string, error) {
+	var warnings []string
 
-	var trackData track
-	if gpxData != nil && len(gpxData) > 0 {
-		trackData = track{
+	privacy := MapPrivacy(activity.Privacy.TypeKey)
+	difficulty := MapDifficulty(activity.Difficulty)
+
+	var trackData sdk.Track
+	if len(gpxData) > 0 {
+		trackData = sdk.Track{
 			Format:        "gpx",
 			ContentBase64: base64.StdEncoding.EncodeToString(gpxData),
 		}
 	} else if len(activity.Track) > 0 {
-		gpxData := garmintrack.BuildGPX(activity.Track)
-		trackData = track{
+		trackData = sdk.Track{
 			Format:        "gpx",
-			ContentBase64: base64.StdEncoding.EncodeToString(gpxData),
+			ContentBase64: base64.StdEncoding.EncodeToString(garmintrack.BuildGPX(activity.Track)),
 		}
 	}
 
-	// Map activity type
-	activityType := mapActivityType(activity.ActivityType.TypeKey)
-
-	// Build metadata
 	metadata := map[string]any{
 		"distance":         activity.Distance,
 		"elevationGain":    activity.ElevationGain,
@@ -56,12 +54,12 @@ func mapActivityToTrail(activity *garminActivityDetail, gpxData []byte) (trailIm
 		if parsed, err := garminutil.ParseActivityStartTime(activity.StartTime); err == nil {
 			startedAt = parsed.UTC().Format(time.RFC3339)
 		} else {
-			logHelper(sdk.LogLevelWarn, fmt.Sprintf("Garmin: unable to parse startTimeGMT %q; omitting startedAt", activity.StartTime))
+			warnings = append(warnings, fmt.Sprintf("unable to parse startTimeGMT %q; omitting startedAt", activity.StartTime))
 		}
 	}
 
-	return trailImport{
-		Source: trailImportSource{
+	return sdk.TrailImport{
+		Source: sdk.TrailImportSource{
 			Provider:   "garmin",
 			ExternalID: strconv.FormatInt(activity.ActivityID, 10),
 			URL:        fmt.Sprintf("https://connect.garmin.com/modern/activity/%d", activity.ActivityID),
@@ -70,19 +68,18 @@ func mapActivityToTrail(activity *garminActivityDetail, gpxData []byte) (trailIm
 		Name:         activity.ActivityName,
 		Description:  activity.Description,
 		StartedAt:    startedAt,
-		ActivityType: activityType,
+		ActivityType: MapActivityType(activity.ActivityType.TypeKey),
 		Privacy:      &privacy,
 		Track:        trackData,
-		Waypoints:    []waypoint{}, // Garmin activities don't typically have waypoints
-		Photos:       mapGarminPhotos(activity.Photos),
+		Waypoints:    []sdk.Waypoint{},
+		Photos:       MapPhotos(activity.Photos),
 		Metadata:     metadata,
 		Difficulty:   difficulty,
-	}, nil
+	}, warnings, nil
 }
 
-// Map Garmin privacy to wanderer privacy
-func mapPrivacy(garminPrivacy string) string {
-	// Garmin privacy values: private, public, friends, etc.
+// MapPrivacy maps a Garmin privacy value to a Wanderer privacy value
+func MapPrivacy(garminPrivacy string) string {
 	switch strings.ToLower(garminPrivacy) {
 	case "private":
 		return "private"
@@ -95,9 +92,8 @@ func mapPrivacy(garminPrivacy string) string {
 	}
 }
 
-// Map Garmin difficulty to wanderer difficulty
-func mapDifficulty(garminDifficulty string) string {
-	// Garmin difficulty values: easy, moderate, hard, etc.
+// MapDifficulty maps a Garmin difficulty rating to a Wanderer difficulty
+func MapDifficulty(garminDifficulty string) string {
 	switch strings.ToLower(garminDifficulty) {
 	case "easy":
 		return "easy"
@@ -110,9 +106,8 @@ func mapDifficulty(garminDifficulty string) string {
 	}
 }
 
-// Map Garmin activity type to wanderer activity type
-func mapActivityType(garminType string) string {
-	// Map common Garmin activity types
+// MapActivityType maps a Garmin activity type key to a Wanderer activity type
+func MapActivityType(garminType string) string {
 	switch strings.ToLower(garminType) {
 	case "running":
 		return "running"
@@ -163,30 +158,22 @@ func mapActivityType(garminType string) string {
 	}
 }
 
-// Map Garmin photos to wanderer photos
-func mapGarminPhotos(photos []garminPhoto) []photo {
+// MapPhotos converts Garmin photo references to Wanderer photos, skipping
+// entries without a usable URL
+func MapPhotos(photos []garminapi.Photo) []sdk.Photo {
 	if len(photos) == 0 {
 		return nil
 	}
 
-	result := make([]photo, 0, len(photos))
+	result := make([]sdk.Photo, 0, len(photos))
 	for _, p := range photos {
-		if p.PhotoURL == "" {
-			continue
-		}
-
-		// Clean up photo URL
 		photoURL := strings.TrimSpace(p.PhotoURL)
 		if photoURL == "" {
 			continue
 		}
-
-		// Ensure URL is properly formatted
 		if !strings.HasPrefix(photoURL, "http") {
 			photoURL = "https:" + photoURL
 		}
-
-		// Parse URL to ensure it's valid
 		parsedURL, err := url.Parse(photoURL)
 		if err != nil || parsedURL.Scheme == "" || parsedURL.Host == "" {
 			continue
@@ -195,13 +182,13 @@ func mapGarminPhotos(photos []garminPhoto) []photo {
 		lat := p.Latitude
 		lon := p.Longitude
 
-		result = append(result, photo{
+		result = append(result, sdk.Photo{
 			ExternalID:  strconv.FormatInt(p.PhotoID, 10),
 			Filename:    fmt.Sprintf("garmin-%d.jpg", p.PhotoID),
 			ContentType: "image/jpeg",
 			Lat:         &lat,
 			Lon:         &lon,
-			Source: mediaSource{
+			Source: sdk.MediaSource{
 				Type: "url",
 				URL:  photoURL,
 			},

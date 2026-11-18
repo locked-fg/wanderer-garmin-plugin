@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/open-wanderer/wanderer/plugins/garmin/internal/garminapi"
+	"github.com/open-wanderer/wanderer/plugins/garmin/internal/garminmap"
 	"github.com/open-wanderer/wanderer/plugins/garmin/internal/garminutil"
 	"github.com/open-wanderer/wanderer/plugins/sdk"
 )
@@ -23,7 +25,6 @@ func syncActivities(client *garminClient, input listInput) (listOutput, error) {
 		limit = defaultPageSize
 	}
 
-	// Parse after date from options
 	after, err := garminutil.ParseAfterDate(input.Options)
 	if err != nil {
 		logHelper(sdk.LogLevelError, "Garmin: "+err.Error())
@@ -35,64 +36,24 @@ func syncActivities(client *garminClient, input listInput) (listOutput, error) {
 		return listOutput{}, err
 	}
 
-	items := make([]trailSummary, 0, len(activities))
-	filteredByDate := 0
-	invalidStartTime := 0
-	for _, activity := range activities {
-		// Filter by after date if not already filtered by API
-		if !after.IsZero() {
-			startTime, parseErr := garminutil.ParseActivityStartTime(activity.StartTime)
-			if parseErr != nil && activity.StartTimeLocal != "" {
-				startTime, parseErr = garminutil.ParseActivityStartTime(activity.StartTimeLocal)
-			}
-			if parseErr != nil {
-				invalidStartTime++
-				logHelper(sdk.LogLevelWarn, fmt.Sprintf("Garmin: skipping activity %d: unparseable start time %q / %q: %v", activity.ActivityID, activity.StartTime, activity.StartTimeLocal, parseErr))
-				continue
-			}
-			if startTime.Before(after) {
-				filteredByDate++
-				continue
-			}
-		}
-
-		externalID := strconv.FormatInt(activity.ActivityID, 10)
-		items = append(items, trailSummary{
-			Source: trailImportSource{
-				Provider:   "garmin",
-				ExternalID: externalID,
-			},
-			Kind: "completed",
-		})
-
-		if len(items) >= limit {
-			break
-		}
+	res := garminapi.BuildSummaries(activities, after, limit)
+	for _, activity := range res.InvalidStartTime {
+		logHelper(sdk.LogLevelWarn, fmt.Sprintf("Garmin: skipping activity %d: unparseable start time %q / %q", activity.ActivityID, activity.StartTime, activity.StartTimeLocal))
 	}
-	logHelper(sdk.LogLevelInfo, fmt.Sprintf("Garmin: activities received=%d eligible=%d filtered_by_date=%d invalid_start_time=%d", len(activities), len(items), filteredByDate, invalidStartTime))
-	logActivitySummaries(items, page, len(activities), len(activities) >= limit)
+	logHelper(sdk.LogLevelInfo, fmt.Sprintf("Garmin: activities received=%d eligible=%d filtered_by_date=%d invalid_start_time=%d", len(activities), len(res.Items), res.FilteredByDate, len(res.InvalidStartTime)))
 
-	nextPage := page + 1
-	hasMore := len(activities) >= limit
+	nextPage, hasMore := garminapi.PageResult(page, len(activities), limit)
+	logActivitySummaries(res.Items, page, len(activities), hasMore)
 
 	return listOutput{
-		Items:   items,
+		Items:   res.Items,
 		State:   sdk.NextPageState(nextPage, hasMore),
 		HasMore: hasMore,
 	}, nil
 }
 
 // Garmin Personal API has no separate routes endpoint; syncRoutes returns an empty list
-// but we can treat saved activities as routes
 func syncRoutes(client *garminClient, input listInput) (listOutput, error) {
-	// For Garmin Personal API, we'll use the same activity search
-	// but filter for activities that might be routes
-	// Note: Garmin Personal API doesn't distinguish between activities and routes
-	// in the same way as Strava. We'll treat all activities as completed for now.
-	// If Garmin adds route support, we can update this.
-
-	// For now, return empty list for routes
-	// Garmin Personal API doesn't have a separate routes endpoint like Strava
 	return listOutput{
 		Items:   []trailSummary{},
 		State:   map[string]any{},
@@ -121,7 +82,10 @@ func getActivityDetail(client *garminClient, input detailInput, kind string) (tr
 		return trailImport{}, fmt.Errorf("Garmin activity has no GPS track points")
 	}
 	detail.Track = points
-	item, err := mapActivityToTrail(detail, nil)
+	item, warnings, err := garminmap.MapActivityToTrail(detail, nil)
+	for _, warning := range warnings {
+		logHelper(sdk.LogLevelWarn, "Garmin: "+warning)
+	}
 	if err == nil {
 		logActivityImportItem(item, points)
 	}
