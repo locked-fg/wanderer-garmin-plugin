@@ -164,6 +164,8 @@ Only for:
 
 After installation, add/configure Garmin in Wanderer, provide the `apiKey`, and sync. Inspect plugin status and container logs if the import fails. Optional helpers and their invocation are documented in [SCRIPTS.md](SCRIPTS.md). Some cleanup helpers delete local Wanderer data; check each script's `--help` and dry-run option before using it.
 
+For the full Garmin sync integration test in the local development environment, follow the [Garmin integration test skill](.agents/skills/garmin-integration-test/SKILL.md). It covers preparing test variables, clearing trails, scheduling and triggering a one-off sync, checking logs and API results, and restoring the schedule and environment.
+
 ### Run a one-off plugin sync in the dev instance
 
 The dev Compose file sets `POCKETBASE_CRON_SYNC_SCHEDULE` to `0 2 * * *`. To test an import immediately, temporarily change it to a one-time cron expression for the next minute in the database container's timezone, then recreate the database service so it picks up the schedule:
