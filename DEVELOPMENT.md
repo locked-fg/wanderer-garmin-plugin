@@ -17,6 +17,7 @@ The plugin implements Wanderer's `list_activities`, `get_activity_detail`, `list
 ## Requirements
 
 Docker is the supported build environment; host Go/TinyGo installations are not required. Parser tests use Go's standard test runner. The tested TinyGo image is `tinygo/tinygo:0.44.0`.
+The Wanderer API Key is available via Environment variable: WANDERER_DEV_API
 
 ## Test and build
 
