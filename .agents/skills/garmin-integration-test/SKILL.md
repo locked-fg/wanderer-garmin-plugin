@@ -1,46 +1,46 @@
 ---
 name: garmin-integration-test
-description: Run and verify a Garmin sync against the local Wanderer development environment, including trail cleanup, one-off cron scheduling, log inspection, API verification, and environment restoration.
+description: Test Garmin plugin changes with fixture-first checks, a bounded live smoke test when needed, API verification, and state restoration; destructive cleanup is limited to isolated data.
 ---
 
 # Garmin integration test
 
-Use this procedure when asked to run or debug a Garmin sync against the local Wanderer development checkout. This procedure is for the disposable development environment only. It deletes all existing trails and related trail records before the test.
+Use this procedure when asked to run or debug the Garmin plugin against the local Wanderer development checkout. Prefer deterministic fixture tests for parsing and filtering, followed by a small live smoke test. A live sync can create persistent data; never clear existing trails as a routine setup step. Run destructive or full-history scenarios only against an isolated disposable database or after preserving a recoverable snapshot and confirming the exact impact with the user.
 
 Repository context: this skill is stored in `wanderer-garmin-plugin/.agents/skills/garmin-integration-test/`. The Wanderer checkout is normally the parent directory. Read `DEVELOPMENT.md` and `SCRIPTS.md` in this repository for current commands and helper behavior before running the test.
 
-## Required outcome
+## Test sequence
 
-Run one Garmin import and confirm that the plugin finishes successfully and the expected imported trails are visible through the Wanderer API. At the end, restore the cron schedule to its original value and stop any environment started solely for this test.
+Use the shortest test that provides evidence for the requested change. Do not wait for unrelated historical activities or for every background sync in the environment to finish.
 
-## Procedure
+1. **Read the task and choose coverage.** Read `DEVELOPMENT.md`, `SCRIPTS.md`, and the referenced messageboard item. Translate each requested behavior into an assertion. For an `after` filter, cover: missing option, empty option if behavior differs, valid ISO date, invalid date, and malformed Garmin start time if relevant. Prefer fixture-backed/unit tests for these cases. The valid fixture must include one activity before the cutoff and one exactly on or after it. A full-history import (`after` empty) is not a suitable default live test because it can take a long time.
 
-1. **Identify and record the target environment.** Confirm this is the local development stack and identify its Compose project, database service, API base URL, schedule source, and current `POCKETBASE_CRON_SYNC_SCHEDULE`. The documented default is `0 2 * * *`; record the actual value and timezone before changing it. Never target production. Do not print, save, or commit credentials.
+2. **Run fast checks first.** Run the relevant Go tests and pinned TinyGo build/install checks described by the project. A build or unit test failure should stop the live test unless the live behavior is specifically needed to diagnose it.
 
-2. **Prepare test configuration.** Locate the Garmin plugin instance and configure the test `apiKey` and any other required inputs using the project's existing local configuration mechanism. Keep secrets in the environment or local secret store; do not add them to source, command history, or logs. Record the exact variable/config values that must be restored.
+3. **Identify the target environment and baseline.** Confirm the local development stack and identify its Compose project, DB service, API base URL, schedule source, and `POCKETBASE_CRON_SYNC_SCHEDULE`. Record the exact schedule and timezone before changing them. Never target production. Use authenticated API reads for user-visible counts, status, and trail fields; an unauthenticated zero count is not evidence that the collection is empty. Do not print resolved Compose configuration because it can contain credentials. Read only the schedule or redact secrets.
 
-3. **Clear prior trails.** Use `scripts/clear_trails.py` against the development database, following `SCRIPTS.md`. This removes trails and related trail records; it does not clear activities. Verify that the `trails` collection is empty through the API before starting the import. Do not use `reset_wanderer_data.py --delete` for a route-only test because it also deletes activities.
+4. **Prepare safe test data and config.** Prefer a dedicated test account, isolated DB, or fixture. Record current route/activity counts and preserve a restorable snapshot before any destructive action. Do not run `scripts/clear_trails.py` on a shared or valuable dev dataset by default: it permanently removes trails and external references. Do not use `reset_wanderer_data.py --delete` for a route-only test because it also deletes activities. Keep API keys in the environment/local secret store, never in command text, history, source, or logs. Back up the exact plugin config and change only the target option, using the authenticated API if it supports the update. Use SQLite only if no supported API write exists; then use a reviewed helper that preserves unrelated JSON fields and restores in a `finally` block.
 
-4. **Set a one-off cron schedule.** Choose a one-time expression for the next minute in the database container's timezone. Change the schedule through the existing dev Compose/environment configuration and recreate the database service so it loads the new value:
+5. **Run one small live smoke test when needed.** Choose a recent cutoff or a dedicated test dataset expected to return few activities. Record the original cron schedule and config first. Set a one-off cron schedule through the existing dev Compose/environment configuration and recreate the DB service. Calculate the schedule in the DB container's timezone; if `TZ` is unset, inspect the image/runtime timezone or explicitly use UTC rather than guessing. Avoid `* * * * *`, which can overlap long imports. Do not wait for unrelated sync work to complete.
 
    ```sh
    docker compose up -d --force-recreate db
    ```
 
-   Avoid `* * * * *`: a sync that imports many activity details can run longer than a minute and overlap another run.
-
-5. **Run and observe the import.** Follow database logs and inspect plugin instance status using the helpers described in `SCRIPTS.md`:
+6. **Prove that the sync actually ran.** Follow sanitized, Garmin-filtered DB logs and inspect plugin status. A `syncing` field alone is not proof: require evidence of a real transition from baseline, such as a newer `last_sync_at`, a Garmin start/completion log, or new matching API records. Poll with a bounded timeout. If the trigger helper only changes status but produces no worker/log/API activity, stop treating it as active, recover the stale status safely, and use the documented cron path. Do not leave an instance stuck in `syncing`.
 
    ```sh
    docker compose logs -f db
    ```
 
-   Wait for the Garmin instance to leave its running state and return to `configured`. Treat a reported error or a stuck run as a failed test; capture relevant sanitized log lines and status details.
+   Completion requires the plugin to leave the running state and return to `configured`, with no nonempty last error. Treat both `null` and `{}` as empty error values. Report nested plugin errors even if the host wraps them (for example, `provider_unavailable` containing `invalid_request`). Filter unrelated provider logs out of the evidence.
 
-6. **Verify results through the API.** Query the Wanderer `trails` collection using the development API and confirm records were created by the Garmin import. Check Garmin origin/external references if available, and compare the records with the expected test account data. A nonzero trail count alone is insufficient if unrelated records could have been created during the test. Also confirm the plugin has no last error and the sync timestamp advanced.
+7. **Verify via API; use DB only for gaps.** Use authenticated API responses to check plugin status, `last_sync_at`, and newly created Garmin trails/external references. Compare against the baseline or isolated test data. Counts alone do not prove date filtering. The exposed trail `date` may not be the original Garmin start time; verify source dates from fixtures/plugin-level assertions or explicit aggregate filter diagnostics (`received`, `eligible`, `filtered`, `invalid start time`). Use read-only SQL for diagnosis only when the API does not expose a needed field, and do not treat DB inspection as the final proof of client-visible behavior.
 
-7. **Restore state, even after failure.** In a cleanup/finally step, restore the exact cron schedule and configuration values recorded in steps 1–2, then recreate `db` to apply the restored schedule. Stop only services that this procedure started solely for the test; leave an already-running development stack running. Confirm the effective schedule is restored and report whether import verification passed. Never leave the one-off schedule active.
+8. **Stop early when the result is sufficient.** If the test is taking longer than the bounded timeout or the user asks to shorten it, stop the one-off run safely. Report it as partial/stopped early, not passed. Preserve concise evidence (elapsed time, last observed status/time, authenticated API result, and relevant sanitized logs); do not spend time waiting for all historical data to sync unless full-history completion is explicitly the test target.
+
+9. **Restore state in a `finally` step.** Restore the exact original config and cron schedule, recreate the DB service if needed, and verify both through the API/config read and effective schedule. Clear stale status only after confirming no worker is still active. Stop only services started solely for the test; leave the already-running stack alone. Verify and report any data changes; restoring config/schedule does not restore deleted or imported records. Never leave a one-off schedule active.
 
 ## Reporting
 
-Report the target development stack, whether the trails collection was cleared, the sync result and verification evidence, any errors, the restored cron schedule, and whether any test-started services were stopped. Do not include API tokens, Garmin keys, or other secrets in the report.
+Report which fixture/unit/build/live checks ran and passed, whether a live run completed or was stopped early, the specific evidence (including API authentication and baseline/delta), data impact, errors, restored config/schedule, and any services stopped. Distinguish `passed`, `failed`, `timed out`, and `partial/stopped early`. Do not include API tokens, Garmin keys, raw secret-bearing config, or unsanitized logs.
